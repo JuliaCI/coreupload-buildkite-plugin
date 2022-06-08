@@ -70,7 +70,7 @@ steps:
   - wait: ~
 
   # Ensure that we got two coredumps from the previous runs
-  - label: "Ensure coredumps were uploaded"
+  - label: ":mag: Check coredumps"
     commands: |
       # Download all artifacts, ensure they match what we expect
       buildkite-agent artifact download '*.core*' .
