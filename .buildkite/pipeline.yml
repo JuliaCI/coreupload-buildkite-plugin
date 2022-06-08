@@ -28,6 +28,9 @@ steps:
             - "thread apply all bt"
             - "info file"
     commands: |
+      # Enable core dumping 
+      ulimit -c unlimited
+
       # Generate two segfaults
       julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
 
