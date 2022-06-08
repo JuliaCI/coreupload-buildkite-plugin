@@ -88,14 +88,18 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     # Start compressing each corefile in the background
     background_compress_corefiles "${CORE_DUMPS[@]}"
 
-    # Prevent trying to run `file` if `gdb_commands` is empty
     if [[ "${#GDB_COMMANDS[@]}" > 0 ]]; then
+        # Ensure we have `file` available:
+        if [[ -z "$(which file 2>/dev/null || true)" ]]; then
+            echo "WARNING: Cannot find `file`, needed to parse executable paths out of corefiles!" >&2
+        fi
+
         # Spit some preliminary information out into the log for each corefile
         # In case something went truly wrong and `gdb` doesn't know what to do, don't cause these
         # commands to fail the entire build.
         for COREFILE in "${CORE_DUMPS[@]}"; do
             # Automatically determine the executable this corefile came from using `file`:
-            FILE_OUTPUT="$(file "${COREFILE}" | tr ',' '\n')"
+            FILE_OUTPUT="$(file "${COREFILE}" 2>/dev/null | tr ',' '\n' || true)"
 
             # Gracefully skip corefiles we can't parse `AT_EXECFN` out of
             if ! grep -q execfn <<<"${FILE_OUTPUT}"; then
