@@ -1,0 +1,15 @@
+name: Julia
+description: Set-up Julia for use in your pipeline.
+author: https://github.com/maleadt
+requirements: [python3, wget]
+configuration:
+  properties:
+    # Defaults to "*.core"
+    core_pattern:
+      type: string
+    # Defaults to "none", can also be "zstd"
+    compressor:
+      type: string
+    gdb_commands:
+      type: array
+  additionalProperties: false

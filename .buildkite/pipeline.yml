@@ -1,0 +1,43 @@
+agents:
+  queue: "juliaecosystem"
+  sandbox_capable: "true"
+  os: "linux"
+  arch: "x86_64"
+
+steps:
+  - label: "Generate coredumps"
+    key: gen-coredumps
+    plugins:
+      # Install Julia v1 so we can run in a sandbox and also use julia to generate segfaults
+      - JuliaCI/julia:
+          version: "1"
+      - staticfloat/sandbox#v1:
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.18/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "93833e935560a376985a86df2642bd4b2dc198d4"
+              uid: 1000
+              gid: 1000
+              workspaces:
+                - "/cache:/cache"
+
+      # Test ourselves
+      - "./.buildkite/plugins/coreupload":
+          core_pattern: "*.core"
+          compressor: "zstd"
+          # Test some cool GDB commands
+          gdb_commands:
+            - "thread apply all bt"
+            - "info file"
+    commands: |
+      # Generate two segfaults
+      julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
+
+      sleep 1
+      julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
+
+  # Ensure that we got two coredumps from the previous run
+  - label: "Ensure coredumps were uploaded"
+    commands: |
+      # Download all artifacts, ensure there are two
+      buildkite-agent artifact download '*.core*'
+
+      [[ "$$(ls *.core* | wc -l)" == "2" ]]

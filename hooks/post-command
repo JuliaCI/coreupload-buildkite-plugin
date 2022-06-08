@@ -1,0 +1,97 @@
+#!/bin/bash
+set -euo pipefail
+
+# Helper function to kill execution when something goes wrong
+function die() {
+    echo "ERROR: ${1}" >&2
+    if which buildkite-agent >/dev/null 2>/dev/null; then
+        # By default, the annotation context is unique to the message
+        local CONTEXT=$(echo "${1}" | ${SHASUM})
+        if [[ "$#" -gt 1 ]]; then
+            CONTEXT="${2}"
+        fi
+        buildkite-agent annotate --context="${CONTEXT}" --style=error "${1}"
+    fi
+    exit 1
+}
+
+# Helper function to collect a buildkite array
+function collect_buildkite_array() {
+    PARAMETER_NAME="${1}"
+
+    local IDX=0
+    while [[ -v "${PARAMETER_NAME}_${IDX}" ]]; do
+        # Fetch the pattern
+        VARNAME="${PARAMETER_NAME}_${IDX}"
+        printf "%s\0" "${!VARNAME}"
+
+        IDX=$((${IDX} + 1))
+    done
+}
+
+# Helper function to compress the corefiles in the background
+function background_compress_corefiles() {
+    if [[ "${COMPRESSOR}" == "zstd" ]]; then
+        zstd -q -z -19 -T0 "$@"
+    elif [[ "${COMPRESSOR}" == "none" ]]; then
+        true
+    else
+        die "Unknown compressor '${COMPRESSOR}'"
+    fi
+}
+
+function compressed_corefile_names() {
+    if [[ "${COMPRESSOR}" == "zstd" ]]; then
+        for f in "$@"; do
+            echo "${f}.zst"
+        done
+    elif [[ "${COMPRESSOR}" == "none" ]]; then
+        echo "$@"
+    else
+        die "Unknown compressor '${COMPRESSOR}'"
+    fi
+}
+
+# Read in plugin options from the environment
+CORE_PATTERN="${BUILDKITE_PLUGIN_COREUPLOAD_CORE_PATTERN:-*.core}"
+COMPRESSOR="${BUILDKITE_PLUGIN_COREUPLOAD_COMPRESSOR:-zstd}"
+readarray -d '' -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
+
+# Only start printing out if we found some core dumps
+if [[ compgen -G "${CORE_PATTERN}" ]]; then
+    echo "--- List of core dumps"
+    CORE_DUMPS=( $(compgen -G "${CORE_PATTERN}") )
+    ls -la "${CORE_DUMPS[@]}"
+
+    # Start compressing each corefile in the background
+    background_compress_corefiles "${CORE_DUMPS[@]}"
+
+    # Spit some preliminary information out into the log for each corefile
+    # In case something went truly wrong and `gdb` doesn't know what to do, don't cause these
+    # commands to fail the entire build.
+    for COREFILE in "${CORE_DUMPS[@]}"; do
+        # Automatically determine the executable this corefile came from using `file`:
+        FILE_OUTPUT="$(file core | tr ',' '\n')"
+
+        # Gracefully skip corefiles we can't parse `AT_EXECFN` out of
+        if ! grep execfn <<<"${FILE_OUTPUT}"; then
+            echo "WARNING: Unable to parse executable path out of '${COREFILE}'" >&2
+            continue
+        fi
+
+        COREFILE_EXE="$(grep execfn <<<"${FILE_OUTPUT}" | cut -d':' -f2 | tr -d "'" | xargs)"
+        for CMD in "${GDB_COMMANDS[@]}"; do
+            echo "--- ${COREFILE} -> ${CMD}"
+            gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex "${CMD}" || true
+        done
+    done
+
+    # Wait for compression to finish, if we started it
+    wait
+
+    CORE_DUMPZ=( $(compressed_corefile_names "${CORE_DUMPS[@]}") )
+
+    # Upload all compressed core files
+    echo "--- Uploading corefiles"
+    buildkite-agent artifact upload "${CORE_DUMPZ[@]}"
+fi
