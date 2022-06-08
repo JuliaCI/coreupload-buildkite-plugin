@@ -7,9 +7,11 @@ configuration:
     # Defaults to "*.core"
     core_pattern:
       type: string
-    # Defaults to "none", can also be "zstd"
+    # Defaults to "none", can also be "zstd".
+    # Make sure you have `zstd` in your path.
     compressor:
       type: string
+    # Defaults to no commands, if you use these make sure you have `file` and `gdb` in your path.
     gdb_commands:
       type: array
   additionalProperties: false

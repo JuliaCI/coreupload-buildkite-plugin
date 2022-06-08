@@ -32,7 +32,11 @@ function collect_buildkite_array() {
 # Helper function to compress the corefiles in the background
 function background_compress_corefiles() {
     if [[ "${COMPRESSOR}" == "zstd" ]]; then
-        zstd -q -z -19 -T0 "$@"
+        # Since we generally have many more cores than files,
+        # it's better to launch multiple zstd instances.
+        for F in "$@"; do
+            zstd -q -z -19 -T0 "${F}" &
+        done
     elif [[ "${COMPRESSOR}" == "none" ]]; then
         true
     else
@@ -54,44 +58,51 @@ function compressed_corefile_names() {
 
 # Read in plugin options from the environment
 CORE_PATTERN="${BUILDKITE_PLUGIN_COREUPLOAD_CORE_PATTERN:-*.core}"
-COMPRESSOR="${BUILDKITE_PLUGIN_COREUPLOAD_COMPRESSOR:-zstd}"
+COMPRESSOR="${BUILDKITE_PLUGIN_COREUPLOAD_COMPRESSOR:-none}"
 readarray -d '' -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
 
 # Only start printing out if we found some core dumps
-if [[ compgen -G "${CORE_PATTERN}" ]]; then
+CORE_DUMPS=( $(compgen -G "${CORE_PATTERN}") )
+if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     echo "--- List of core dumps"
-    CORE_DUMPS=( $(compgen -G "${CORE_PATTERN}") )
-    ls -la "${CORE_DUMPS[@]}"
+    ls -lah "${CORE_DUMPS[@]}"
 
     # Start compressing each corefile in the background
     background_compress_corefiles "${CORE_DUMPS[@]}"
 
-    # Spit some preliminary information out into the log for each corefile
-    # In case something went truly wrong and `gdb` doesn't know what to do, don't cause these
-    # commands to fail the entire build.
-    for COREFILE in "${CORE_DUMPS[@]}"; do
-        # Automatically determine the executable this corefile came from using `file`:
-        FILE_OUTPUT="$(file core | tr ',' '\n')"
+    # Prevent trying to run `file` if `gdb_commands` is empty
+    if [[ "${#GDB_COMMANDS[@]}" > 0 ]]; then
+        # Spit some preliminary information out into the log for each corefile
+        # In case something went truly wrong and `gdb` doesn't know what to do, don't cause these
+        # commands to fail the entire build.
+        for COREFILE in "${CORE_DUMPS[@]}"; do
+            # Automatically determine the executable this corefile came from using `file`:
+            FILE_OUTPUT="$(file "${COREFILE}" | tr ',' '\n')"
 
-        # Gracefully skip corefiles we can't parse `AT_EXECFN` out of
-        if ! grep execfn <<<"${FILE_OUTPUT}"; then
-            echo "WARNING: Unable to parse executable path out of '${COREFILE}'" >&2
-            continue
-        fi
+            # Gracefully skip corefiles we can't parse `AT_EXECFN` out of
+            if ! grep execfn <<<"${FILE_OUTPUT}"; then
+                echo "WARNING: Unable to parse executable path out of '${COREFILE}'" >&2
+                continue
+            fi
 
-        COREFILE_EXE="$(grep execfn <<<"${FILE_OUTPUT}" | cut -d':' -f2 | tr -d "'" | xargs)"
-        for CMD in "${GDB_COMMANDS[@]}"; do
-            echo "--- ${COREFILE} -> ${CMD}"
-            gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex "${CMD}" || true
+            COREFILE_EXE="$(grep execfn <<<"${FILE_OUTPUT}" | cut -d':' -f2 | tr -d "'" | xargs)"
+            for CMD in "${GDB_COMMANDS[@]}"; do
+                echo "--- ${COREFILE} -> ${CMD}"
+                gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex "${CMD}" || true
+            done
         done
-    done
+    fi
 
     # Wait for compression to finish, if we started it
-    wait
-
-    CORE_DUMPZ=( $(compressed_corefile_names "${CORE_DUMPS[@]}") )
+    if [[ -n "$(jobs)" ]]; then
+        echo "--- Waiting upon compression"
+        wait
+        echo " -> done!"
+    fi
 
     # Upload all compressed core files
     echo "--- Uploading corefiles"
-    buildkite-agent artifact upload "${CORE_DUMPZ[@]}"
+    for COMPRESSED_COREFILE in $(compressed_corefile_names "${CORE_DUMPS[@]}"); do
+        buildkite-agent artifact upload "${COMPRESSED_COREFILE}"
+    done
 fi
