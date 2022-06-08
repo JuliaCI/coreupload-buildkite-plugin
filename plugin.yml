@@ -14,4 +14,7 @@ configuration:
     # Defaults to no commands, if you use these make sure you have `file` and `gdb` in your path.
     gdb_commands:
       type: array
+    # If set to any nonempty string, disables the plugin completely.
+    disabled:
+      type: string
   additionalProperties: false
