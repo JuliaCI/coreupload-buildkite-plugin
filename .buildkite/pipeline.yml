@@ -67,12 +67,10 @@ steps:
       echo "--- segfault 2"
       julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
 
+  - wait: ~
+
   # Ensure that we got two coredumps from the previous runs
   - label: "Ensure coredumps were uploaded"
-    depends_on:
-      - gen-zstd-coredumps
-      - gen-raw-coredumps
-      - disabled-coredumps
     commands: |
       # Download all artifacts, ensure they match what we expect
       buildkite-agent artifact download '*.core*' .
