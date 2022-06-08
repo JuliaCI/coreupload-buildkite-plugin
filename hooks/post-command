@@ -97,6 +97,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     if [[ -n "$(jobs)" ]]; then
         echo "--- Waiting upon compression"
         wait
+        echo " -> done!"
     fi
 
     # Upload all compressed core files
