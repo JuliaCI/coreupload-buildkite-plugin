@@ -86,7 +86,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
             FILE_OUTPUT="$(file "${COREFILE}" | tr ',' '\n')"
 
             # Gracefully skip corefiles we can't parse `AT_EXECFN` out of
-            if ! grep execfn <<<"${FILE_OUTPUT}"; then
+            if ! grep -q execfn <<<"${FILE_OUTPUT}"; then
                 echo "WARNING: Unable to parse executable path out of '${COREFILE}'" >&2
                 continue
             fi
