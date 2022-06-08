@@ -47,7 +47,7 @@ function background_compress_corefiles() {
         # Since we generally have many more cores than files,
         # it's better to launch multiple zstd instances.
         for F in "$@"; do
-            zstd -q -z -19 -T0 "${F}" &
+            zstd -q -z -T0 "${F}" &
         done
     elif [[ "${COMPRESSOR}" == "none" ]]; then
         true
@@ -91,7 +91,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     if [[ "${#GDB_COMMANDS[@]}" > 0 ]]; then
         # Ensure we have `file` available:
         if [[ -z "$(which file 2>/dev/null || true)" ]]; then
-            echo "WARNING: Cannot find `file`, needed to parse executable paths out of corefiles!" >&2
+            echo "WARNING: Cannot find 'file', needed to parse executable paths out of corefiles!" >&2
         fi
 
         # Spit some preliminary information out into the log for each corefile
