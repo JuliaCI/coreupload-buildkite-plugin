@@ -60,6 +60,12 @@ function compressed_corefile_names() {
 CORE_PATTERN="${BUILDKITE_PLUGIN_COREUPLOAD_CORE_PATTERN:-*.core}"
 COMPRESSOR="${BUILDKITE_PLUGIN_COREUPLOAD_COMPRESSOR:-none}"
 readarray -d '' -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
+DISABLED="${BUILDKITE_PLUGIN_COREUPLOAD_DISABLED:-}"
+
+# Allow strings to disable us
+if [[ -n "${DISABLED}" ]]; then
+    exit 0
+fi
 
 # Only start printing out if we found some core dumps
 CORE_DUMPS=( $(compgen -G "${CORE_PATTERN}") )
