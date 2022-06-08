@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+shopt -s globstar extglob nullglob
 
 # Helper function to kill execution when something goes wrong
 function die() {
@@ -26,6 +27,17 @@ function collect_buildkite_array() {
         printf "%s\0" "${!VARNAME}"
 
         IDX=$((${IDX} + 1))
+    done
+}
+
+function collect_glob_pattern() {
+    local target="${1}"
+    # Iterate over the glob pattern
+    for f in ${target}; do
+        # Ignore directories, only list files
+        if [[ -f "${f}" ]]; then
+            printf "%s\0" "${f}"
+        fi
     done
 }
 
@@ -68,7 +80,7 @@ if [[ -n "${DISABLED}" ]]; then
 fi
 
 # Only start printing out if we found some core dumps
-CORE_DUMPS=( $(compgen -G "${CORE_PATTERN}") )
+readarray -d '' CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
 if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     echo "--- List of core dumps"
     ls -lah "${CORE_DUMPS[@]}"

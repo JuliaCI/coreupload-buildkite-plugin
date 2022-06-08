@@ -8,20 +8,21 @@ steps:
   - label: ":boom: raw coredumps"
     key: gen-raw-coredumps
     plugins:
+      # Test using globs
       - ".buildkite/plugins/coreupload":
-          core_pattern: "*.core"
+          core_pattern: "**/*.core"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
 
       # Create a sub-bash and kill it, then ignore its failure
+      mkdir foo && cd foo
       bash -c 'kill -11 $$$$' || true
 
   - label: ":boom: :unamused: disabled coredumps"
     key: disabled-coredumps
     plugins:
       - ".buildkite/plugins/coreupload":
-          core_pattern: "*.core"
           disabled: "true"
     commands: |
       # Enable core dumping
@@ -38,7 +39,6 @@ steps:
       # we end up with improperly-ordered hooks.  This unfortunately means that if someone
       # makes a PR where the branch doesn't exist on the origin, it won't work properly.
       - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
-          core_pattern: "*.core"
           compressor: "zstd"
           # Test some cool GDB commands
           gdb_commands:
@@ -67,15 +67,16 @@ steps:
       echo "--- segfault 2"
       julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
 
+  - wait: ~
+
   # Ensure that we got two coredumps from the previous runs
-  - label: "Ensure coredumps were uploaded"
-    depends_on:
-      - gen-zstd-coredumps
-      - gen-raw-coredumps
-      - disabled-coredumps
+  - label: ":mag: Check coredumps"
     commands: |
       # Download all artifacts, ensure they match what we expect
       buildkite-agent artifact download '*.core*' .
+
+      # Move the `foo`-prefixed artifacts into the current directory:
+      mv foo/* .
 
       [[ "$$(ls *.core* | wc -l)" == "3" ]]
       echo "Three corefiles overall: ✔️"
