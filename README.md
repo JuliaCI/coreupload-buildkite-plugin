@@ -9,7 +9,7 @@ steps:
   - label: ":julia: Run segfaulting tests"
     plugins:
       - JuliaCI/julia#v1: ~
-      - staticfloat/coreupload:
+      - JuliaCI/coreupload:
           core_pattern: "*.core"
           compressor: "zstd"
           gdb_commands:
