@@ -6,7 +6,6 @@ agents:
 
 steps:
   - label: ":boom: raw coredumps"
-    key: gen-raw-coredumps
     plugins:
       # Test using globs
       - ".buildkite/plugins/coreupload":
@@ -21,7 +20,6 @@ steps:
       bash -c 'kill -11 $$$$' || true
 
   - label: ":boom: :package: bundled, raw coredump"
-    key: gen-raw-coredump-bundle
     plugins:
       # Test using globs
       - ".buildkite/plugins/coreupload":
@@ -37,7 +35,6 @@ steps:
       bash -c 'kill -11 $$$$' || true
 
   - label: ":boom: :zipper_mouth_face: :package: bundled, compressed coredump"
-    key: gen-raw-coredump-bundle
     plugins:
       # Test using globs
       - ".buildkite/plugins/coreupload":
@@ -54,7 +51,6 @@ steps:
       bash -c 'kill -11 $$$$' || true
 
   - label: ":boom: :unamused: disabled coredumps"
-    key: disabled-coredumps
     plugins:
       - ".buildkite/plugins/coreupload":
           disabled: "true"
@@ -66,7 +62,6 @@ steps:
       bash -c 'kill -11 $$$$' || true
 
   - label: ":boom: :zipper_mouth_face: zstd coredumps"
-    key: gen-zstd-coredumps
     plugins:
       # Test ourselves.  Note that we add ourself via this ugly hack to ensure that our
       # hook ordering is consistent with `sandbox`; if we try to do the "local path" trick,
