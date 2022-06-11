@@ -136,6 +136,12 @@ COMPRESSOR="${BUILDKITE_PLUGIN_COREUPLOAD_COMPRESSOR:-none}"
 readarray -d'\0' -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
 DISABLED="${BUILDKITE_PLUGIN_COREUPLOAD_DISABLED:-}"
 CREATE_BUNDLE="${BUILDKITE_PLUGIN_COREUPLOAD_CREATE_BUNDLE:-false}"
+DEBUG_PLUGIN="${BUILDKITE_PLUGIN_COREUPLOAD_DEBUG_PLUGIN:-false}"
+
+if [[ "${DEBUG_PLUGIN}" == "true" ]]; then
+    echo "--- coreupload debug output"
+    set -x
+fi
 
 # Allow strings to disable us
 if [[ -n "${DISABLED}" ]]; then

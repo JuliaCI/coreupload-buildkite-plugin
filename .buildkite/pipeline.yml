@@ -11,6 +11,7 @@ steps:
       # Test using globs
       - ".buildkite/plugins/coreupload":
           core_pattern: "**/*.core"
+          debug_plugin: "true"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -26,6 +27,7 @@ steps:
       - ".buildkite/plugins/coreupload":
           core_pattern: "**/*.core"
           create_bundle: "true"
+          debug_plugin: "true"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -42,6 +44,7 @@ steps:
           core_pattern: "**/*.core"
           create_bundle: "true"
           compressor: "zstd"
+          debug_plugin: "true"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -75,6 +78,7 @@ steps:
           gdb_commands:
             - "thread apply all bt"
             - "info file"
+          debug_plugin: "true"
 
       # Install Julia v1 so we can run in a sandbox and also use julia to generate segfaults
       - JuliaCI/julia:
