@@ -19,6 +19,37 @@ steps:
       mkdir foo && cd foo
       bash -c 'kill -11 $$$$' || true
 
+  - label: ":boom: :package: bundled, raw coredump"
+    key: gen-raw-coredump-bundle
+    plugins:
+      # Test using globs
+      - ".buildkite/plugins/coreupload":
+          core_pattern: "**/*.core"
+          create_bundle: "true"
+    commands: |
+      # Enable core dumping
+      ulimit -c unlimited
+
+      # Create a sub-bash and kill it, then ignore its failure
+      mkdir foo && cd foo
+      bash -c 'kill -11 $$$$' || true
+
+  - label: ":boom: :zipper_mouth_face: :package: bundled, compressed coredump"
+    key: gen-raw-coredump-bundle
+    plugins:
+      # Test using globs
+      - ".buildkite/plugins/coreupload":
+          core_pattern: "**/*.core"
+          create_bundle: "true"
+          compressor: "zstd"
+    commands: |
+      # Enable core dumping
+      ulimit -c unlimited
+
+      # Create a sub-bash and kill it, then ignore its failure
+      mkdir foo && cd foo
+      bash -c 'kill -11 $$$$' || true
+
   - label: ":boom: :unamused: disabled coredumps"
     key: disabled-coredumps
     plugins:
@@ -78,11 +109,17 @@ steps:
       # Move the `foo`-prefixed artifacts into the current directory:
       mv foo/* .
 
-      [[ "$$(ls *.core* | wc -l)" == "3" ]]
-      echo "Three corefiles overall: ✔️"
+      [[ "$$(ls *.core* | wc -l)" == "5" ]]
+      echo "Five corefiles overall: ✔️"
 
       [[ "$$(ls julia-*.core.zst | wc -l)" == "2" ]]
       echo "Two zstd julia corefiles: ✔️"
 
       [[ "$$(ls bash-*.core | wc -l)" == "1" ]]
       echo "One raw bash corefile: ✔️"
+
+      [[ "$$(ls bash-*.core.tar | wc -l)" == "1" ]]
+      echo "One raw bash bundled bash corefile: ✔️"
+
+      [[ "$$(ls bash-*.core.tar.zst | wc -l)" == "1" ]]
+      echo "One zstd bash bundled bash corefile: ✔️"

@@ -17,4 +17,8 @@ configuration:
     # If set to any nonempty string, disables the plugin completely.
     disabled:
       type: string
+    # If set to `true`, uses `gdb` to dump the list of loaded libraries, then bundles them
+    # together into a `.tar.zst` file, instead of just a `.core.zst` file.
+    create_bundle:
+      type: bool
   additionalProperties: false

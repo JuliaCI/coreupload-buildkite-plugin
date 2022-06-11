@@ -18,7 +18,7 @@ function die() {
 
 # Helper function to collect a buildkite array
 function collect_buildkite_array() {
-    PARAMETER_NAME="${1}"
+    local PARAMETER_NAME="${1}"
 
     local IDX=0
     while [[ -v "${PARAMETER_NAME}_${IDX}" ]]; do
@@ -44,6 +44,7 @@ function collect_glob_pattern() {
 # Helper function to compress the corefiles in the background
 function background_compress_corefiles() {
     if [[ "${COMPRESSOR}" == "zstd" ]]; then
+        ensure_tool "zstd" "needed to compress corefiles"
         # Since we generally have many more cores than files,
         # it's better to launch multiple zstd instances.
         for F in "$@"; do
@@ -51,6 +52,18 @@ function background_compress_corefiles() {
         done
     elif [[ "${COMPRESSOR}" == "none" ]]; then
         true
+    else
+        die "Unknown compressor '${COMPRESSOR}'"
+    fi
+}
+
+# Helper function to allow compressing in a pipeline
+function compress() {
+    if [[ "${COMPRESSOR}" == "zstd" ]]; then
+        ensure_tool "zstd" "needed to compress corefiles"
+        zstd -q -z -T0 "-"
+    elif [[ "${COMPRESSOR}" == "none" ]]; then
+        cat "-"
     else
         die "Unknown compressor '${COMPRESSOR}'"
     fi
@@ -68,11 +81,61 @@ function compressed_corefile_names() {
     fi
 }
 
+function ensure_tool() {
+    local TOOL="${1}"
+    local REASON="${2}"
+    if [[ -z "$(which "${TOOL}" 2>/dev/null || true)" ]]; then
+        echo "WARNING: Cannot find '${TOOL}', ${REASON}!" >&2
+    fi
+}
+
+function parse_corefile_executable() {
+    local COREFILE="${1}"
+
+    # Make sure we've got these tools
+    ensure_tool "file" "needed to parse executable paths out of corefiles!"
+    ensure_tool "gdb" "needed to run gdb commands"
+
+    # Automatically determine the executable this corefile came from using `file`:
+    local FILE_OUTPUT="$(file "${COREFILE}" 2>/dev/null | tr ',' '\n' || true)"
+
+    # Gracefully skip corefiles we can't parse `AT_EXECFN` out of
+    if ! grep -q execfn <<<"${FILE_OUTPUT}"; then
+        echo "WARNING: Unable to parse executable path out of '${COREFILE}'" >&2
+        return
+    fi
+
+    grep execfn <<<"${FILE_OUTPUT}" | cut -d':' -f2 | tr -d "'" | xargs
+}
+
+function collect_bundle_files() {
+    local COREFILE="${1}"
+    local COREFILE_EXE="${2-}"
+    if [[ -z "${COREFILE_EXE}" ]]; then 
+        COREFILE_EXE="$(parse_corefile_executable "${COREFILE}")"
+    fi
+
+    local GDB_OUTPUT="$(gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex 'info sharedlibrary' 2>&1)"
+    readarray -d'\0' -t SHARED_LIBRARY_LINES < <(awk '{ if ($0 ~ /Shared Object Library/) { found = 1 } else { if (found) { print } } }' <<<"${GDB_OUTPUT}" | tr ' ' '\0' | tr '\n' '\0')
+
+    # Store `FILES` as an associative array, for deduplication purposes
+    declare -A FILES
+    for F in "${SHARED_LIBRARY_LINES[@]}"; do
+        if [[ -f "${F}" ]]; then
+            FILES["${F}"]=1
+        fi
+    done
+    FILES["${COREFILE}"]=1
+    FILES["${COREFILE_EXE}"]=1
+    printf "%s\0" "${!FILES[@]}"
+}
+
 # Read in plugin options from the environment
 CORE_PATTERN="${BUILDKITE_PLUGIN_COREUPLOAD_CORE_PATTERN:-*.core}"
 COMPRESSOR="${BUILDKITE_PLUGIN_COREUPLOAD_COMPRESSOR:-none}"
-readarray -d '' -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
+readarray -d'\0' -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
 DISABLED="${BUILDKITE_PLUGIN_COREUPLOAD_DISABLED:-}"
+CREATE_BUNDLE="${BUILDKITE_PLUGIN_COREUPLOAD_CREATE_BUNDLE:-false}"
 
 # Allow strings to disable us
 if [[ -n "${DISABLED}" ]]; then
@@ -80,34 +143,51 @@ if [[ -n "${DISABLED}" ]]; then
 fi
 
 # Only start printing out if we found some core dumps
-readarray -d '' CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
+readarray -d'\0' CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
 if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     echo "--- List of core dumps"
     ls -lah "${CORE_DUMPS[@]}"
 
-    # Start compressing each corefile in the background
-    background_compress_corefiles "${CORE_DUMPS[@]}"
+    UPLOAD_TARGETS=()
+    if [[ "${CREATE_BUNDLE}" == "true" ]]; then
+        ensure_tool "file" "needed to parse executable paths out of corefiles!"
+        ensure_tool "gdb" "needed to run gdb commands"
+
+        for COREFILE in "${CORE_DUMPS[@]}"; do
+            # Get list of files we're going to bundle together into a tarball
+            readarray -d'\0' -t FILE_LIST < <(collect_bundle_files "${COREFILE}")
+            echo "--- ${COREFILE} bundle list"
+            for BF in "${FILE_LIST[@]}"; do
+                echo " -> ${BF}"
+            done
+
+            # Pass this file list off to `tar`, then compress it
+            COMPRESSED_TARBALL="$(compressed_corefile_names "${COREFILE}.tar")"
+            tar c "${FILE_LIST[@]}" | compress > "${COMPRESSED_TARBALL}"
+            UPLOAD_TARGETS+=( "${COMPRESSED_TARBALL}" )
+        done
+    else
+        # Start compressing each corefile in the background
+        background_compress_corefiles "${CORE_DUMPS[@]}"
+        for COREFILE in "${CORE_DUMPS[@]}"; do
+            UPLOAD_TARGETS+=( "$(compressed_corefile_names "${COREFILE}")" )
+        done
+    fi
 
     if [[ "${#GDB_COMMANDS[@]}" > 0 ]]; then
-        # Ensure we have `file` available:
-        if [[ -z "$(which file 2>/dev/null || true)" ]]; then
-            echo "WARNING: Cannot find 'file', needed to parse executable paths out of corefiles!" >&2
-        fi
+        ensure_tool "file" "needed to parse executable paths out of corefiles!"
+        ensure_tool "gdb" "needed to run gdb commands"
 
         # Spit some preliminary information out into the log for each corefile
         # In case something went truly wrong and `gdb` doesn't know what to do, don't cause these
         # commands to fail the entire build.
         for COREFILE in "${CORE_DUMPS[@]}"; do
-            # Automatically determine the executable this corefile came from using `file`:
-            FILE_OUTPUT="$(file "${COREFILE}" 2>/dev/null | tr ',' '\n' || true)"
-
-            # Gracefully skip corefiles we can't parse `AT_EXECFN` out of
-            if ! grep -q execfn <<<"${FILE_OUTPUT}"; then
+            COREFILE_EXE="$(parse_corefile_executable "${COREFILE}")"
+            if [[ -z "${COREFILE_EXE}" ]]; then
                 echo "WARNING: Unable to parse executable path out of '${COREFILE}'" >&2
                 continue
             fi
 
-            COREFILE_EXE="$(grep execfn <<<"${FILE_OUTPUT}" | cut -d':' -f2 | tr -d "'" | xargs)"
             for CMD in "${GDB_COMMANDS[@]}"; do
                 echo "--- ${COREFILE} -> ${CMD}"
                 gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex "${CMD}" || true
@@ -124,7 +204,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
 
     # Upload all compressed core files
     echo "--- Uploading corefiles"
-    for COMPRESSED_COREFILE in $(compressed_corefile_names "${CORE_DUMPS[@]}"); do
-        buildkite-agent artifact upload "${COMPRESSED_COREFILE}"
+    for TARGET in "${UPLOAD_TARGETS[@]}"; do
+        buildkite-agent artifact upload "${TARGET}"
     done
 fi
