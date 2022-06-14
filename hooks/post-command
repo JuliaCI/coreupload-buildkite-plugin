@@ -169,7 +169,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
 
             # Pass this file list off to `tar`, then compress it
             COMPRESSED_TARBALL="$(compressed_corefile_names "${COREFILE}.tar")"
-            tar c "${FILE_LIST[@]}" | compress > "${COMPRESSED_TARBALL}"
+            tar hc "${FILE_LIST[@]}" | compress > "${COMPRESSED_TARBALL}"
             UPLOAD_TARGETS+=( "${COMPRESSED_TARBALL}" )
         done
     else
