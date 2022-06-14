@@ -107,12 +107,13 @@ steps:
       ulimit -c unlimited
 
       # Generate two segfaults
-      echo "--- segfault 1"
-      julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
+      echo "--- sig 15"
+      julia -e 'ccall(:raise, Cvoid, (Cint,), 15)' || true
+      ls -la
 
-      sleep 1
-      echo "--- segfault 2"
-      julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
+      echo "--- sig 11"
+      julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
+      ls -la
 
   - wait: ~
 
