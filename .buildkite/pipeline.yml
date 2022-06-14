@@ -21,11 +21,19 @@ steps:
 
   - label: ":boom: :package: bundled, raw coredump"
     plugins:
-      # Test using globs
-      - ".buildkite/plugins/coreupload":
+      - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
           core_pattern: "**/*.core"
           create_bundle: "true"
           debug_plugin: "true"
+      - JuliaCI/julia:
+          version: "1"
+      - staticfloat/sandbox#v1:
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              uid: 1000
+              gid: 1000
+              workspaces:
+                - "/cache:/cache"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -37,11 +45,20 @@ steps:
   - label: ":boom: :zipper_mouth_face: :package: bundled, compressed coredump"
     plugins:
       # Test using globs
-      - ".buildkite/plugins/coreupload":
+      - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
           core_pattern: "**/*.core"
           create_bundle: "true"
           compressor: "zstd"
           debug_plugin: "true"
+      - JuliaCI/julia:
+          version: "1"
+      - staticfloat/sandbox#v1:
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              uid: 1000
+              gid: 1000
+              workspaces:
+                - "/cache:/cache"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
