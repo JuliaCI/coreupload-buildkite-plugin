@@ -17,4 +17,11 @@ configuration:
     # If set to any nonempty string, disables the plugin completely.
     disabled:
       type: string
+    # If set to `true`, uses `gdb` to dump the list of loaded libraries, then bundles them
+    # together into a `.tar` file.  Default: `false`
+    create_bundle:
+      type: bool
+    # If set to `true`, generates large amounts of debugging output.  Default: `false`
+    debug_plugin:
+      type: bool
   additionalProperties: false

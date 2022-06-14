@@ -12,6 +12,7 @@ steps:
       - JuliaCI/coreupload#v1:
           core_pattern: "*.core"
           compressor: "zstd"
+          create_bundle: "true"
           gdb_commands:
             - "thread apply all bt"
             - "info file"
@@ -25,3 +26,5 @@ steps:
 * `compressor`: A compressor to be used to reduce corefile size before upload.  Currently only supports `none` and `zstd`.  Note that `zstd` must be available on the path in order to be used.
 * `gdb_commands`: An array of commands that will be invoked by `gdb` before upload, for easy visual inspection of useful debugging information without even downloading the corefiles.  Note that `gdb` and `file` must be available on the path in order to be used.
 * `disabled`: A parameter that, if provided and non-empty, disables the plugin entirely.
+* `create_bundle`: If `true`, collects all shared libraries into a tarball before uploading.
+* `debug_plugin`: If `true`, generates large amounts of debugging output during hook execution.

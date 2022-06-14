@@ -6,7 +6,6 @@ agents:
 
 steps:
   - label: ":boom: raw coredumps"
-    key: gen-raw-coredumps
     plugins:
       # Test using globs
       - ".buildkite/plugins/coreupload":
@@ -19,8 +18,53 @@ steps:
       mkdir foo && cd foo
       bash -c 'kill -11 $$$$' || true
 
+  - label: ":boom: :package: bundled, raw coredump"
+    plugins:
+      - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
+          core_pattern: "**/*.core"
+          create_bundle: "true"
+      - JuliaCI/julia:
+          version: "1"
+      - staticfloat/sandbox#v1:
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              uid: 1000
+              gid: 1000
+              workspaces:
+                - "/cache:/cache"
+    commands: |
+      # Enable core dumping
+      ulimit -c unlimited
+
+      # Create a sub-bash and kill it, then ignore its failure
+      mkdir foo && cd foo
+      bash -c 'kill -11 $$$$' || true
+
+  - label: ":boom: :zipper_mouth_face: :package: bundled, compressed coredump"
+    plugins:
+      # Test using globs
+      - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
+          core_pattern: "**/*.core"
+          create_bundle: "true"
+          compressor: "zstd"
+      - JuliaCI/julia:
+          version: "1"
+      - staticfloat/sandbox#v1:
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              uid: 1000
+              gid: 1000
+              workspaces:
+                - "/cache:/cache"
+    commands: |
+      # Enable core dumping
+      ulimit -c unlimited
+
+      # Create a sub-bash and kill it, then ignore its failure
+      mkdir foo && cd foo
+      bash -c 'kill -11 $$$$' || true
+
   - label: ":boom: :unamused: disabled coredumps"
-    key: disabled-coredumps
     plugins:
       - ".buildkite/plugins/coreupload":
           disabled: "true"
@@ -32,7 +76,6 @@ steps:
       bash -c 'kill -11 $$$$' || true
 
   - label: ":boom: :zipper_mouth_face: zstd coredumps"
-    key: gen-zstd-coredumps
     plugins:
       # Test ourselves.  Note that we add ourself via this ugly hack to ensure that our
       # hook ordering is consistent with `sandbox`; if we try to do the "local path" trick,
@@ -60,12 +103,11 @@ steps:
       ulimit -c unlimited
 
       # Generate two segfaults
-      echo "--- segfault 1"
-      julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
+      echo "--- sig 11"
+      julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
 
-      sleep 1
-      echo "--- segfault 2"
-      julia -e 'ccall(Ptr{UInt8}(rand(UInt64)), Cint, ())' || true
+      echo "--- sig 11"
+      julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
 
   - wait: ~
 
@@ -78,11 +120,17 @@ steps:
       # Move the `foo`-prefixed artifacts into the current directory:
       mv foo/* .
 
-      [[ "$$(ls *.core* | wc -l)" == "3" ]]
-      echo "Three corefiles overall: ✔️"
+      [[ "$$(ls *.core* | wc -l)" == "5" ]]
+      echo "Five corefiles overall: ✔️"
 
       [[ "$$(ls julia-*.core.zst | wc -l)" == "2" ]]
       echo "Two zstd julia corefiles: ✔️"
 
       [[ "$$(ls bash-*.core | wc -l)" == "1" ]]
       echo "One raw bash corefile: ✔️"
+
+      [[ "$$(ls bash-*.core.tar | wc -l)" == "1" ]]
+      echo "One raw bash bundled bash corefile: ✔️"
+
+      [[ "$$(ls bash-*.core.tar.zst | wc -l)" == "1" ]]
+      echo "One zstd bash bundled bash corefile: ✔️"
