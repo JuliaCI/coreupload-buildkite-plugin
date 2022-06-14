@@ -10,7 +10,6 @@ steps:
       # Test using globs
       - ".buildkite/plugins/coreupload":
           core_pattern: "**/*.core"
-          debug_plugin: "true"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -24,7 +23,6 @@ steps:
       - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
           core_pattern: "**/*.core"
           create_bundle: "true"
-          debug_plugin: "true"
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
@@ -49,7 +47,6 @@ steps:
           core_pattern: "**/*.core"
           create_bundle: "true"
           compressor: "zstd"
-          debug_plugin: "true"
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
@@ -90,7 +87,6 @@ steps:
           gdb_commands:
             - "thread apply all bt"
             - "info file"
-          debug_plugin: "true"
 
       # Install Julia v1 so we can run in a sandbox and also use julia to generate segfaults
       - JuliaCI/julia:
@@ -107,13 +103,11 @@ steps:
       ulimit -c unlimited
 
       # Generate two segfaults
-      echo "--- sig 15"
-      julia -e 'ccall(:raise, Cvoid, (Cint,), 15)' || true
-      ls -la
+      echo "--- sig 11"
+      julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
 
       echo "--- sig 11"
       julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
-      ls -la
 
   - wait: ~
 

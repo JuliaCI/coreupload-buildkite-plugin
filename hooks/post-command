@@ -24,7 +24,7 @@ function collect_buildkite_array() {
     while [[ -v "${PARAMETER_NAME}_${IDX}" ]]; do
         # Fetch the pattern
         VARNAME="${PARAMETER_NAME}_${IDX}"
-        printf "%s\0" "${!VARNAME}"
+        printf "%s\n" "${!VARNAME}"
 
         IDX=$((${IDX} + 1))
     done
@@ -36,7 +36,7 @@ function collect_glob_pattern() {
     for f in ${target}; do
         # Ignore directories, only list files
         if [[ -f "${f}" ]]; then
-            printf "%s\0" "${f}"
+            printf "%s\n" "${f}"
         fi
     done
 }
@@ -116,7 +116,7 @@ function collect_bundle_files() {
     fi
 
     local GDB_OUTPUT="$(gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex 'info sharedlibrary' 2>&1)"
-    readarray -d'\0' -t SHARED_LIBRARY_LINES < <(awk '{ if ($0 ~ /Shared Object Library/) { found = 1 } else { if (found) { print } } }' <<<"${GDB_OUTPUT}" | tr ' ' '\0' | tr '\n' '\0')
+    readarray -t SHARED_LIBRARY_LINES < <(awk '{ if ($0 ~ /Shared Object Library/) { found = 1 } else { if (found) { print } } }' <<<"${GDB_OUTPUT}" | tr ' ' '\n')
 
     # Store `FILES` as an associative array, for deduplication purposes
     declare -A FILES
@@ -127,13 +127,13 @@ function collect_bundle_files() {
     done
     FILES["${COREFILE}"]=1
     FILES["${COREFILE_EXE}"]=1
-    printf "%s\0" "${!FILES[@]}"
+    printf "%s\n" "${!FILES[@]}"
 }
 
 # Read in plugin options from the environment
 CORE_PATTERN="${BUILDKITE_PLUGIN_COREUPLOAD_CORE_PATTERN:-*.core}"
 COMPRESSOR="${BUILDKITE_PLUGIN_COREUPLOAD_COMPRESSOR:-none}"
-readarray -d'\0' -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
+readarray -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
 DISABLED="${BUILDKITE_PLUGIN_COREUPLOAD_DISABLED:-}"
 CREATE_BUNDLE="${BUILDKITE_PLUGIN_COREUPLOAD_CREATE_BUNDLE:-false}"
 DEBUG_PLUGIN="${BUILDKITE_PLUGIN_COREUPLOAD_DEBUG_PLUGIN:-false}"
@@ -149,7 +149,7 @@ if [[ -n "${DISABLED}" ]]; then
 fi
 
 # Only start printing out if we found some core dumps
-readarray -d'\0' CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
+readarray -t CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
 if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     echo "--- List of core dumps"
     ls -lah "${CORE_DUMPS[@]}"
@@ -161,7 +161,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
 
         for COREFILE in "${CORE_DUMPS[@]}"; do
             # Get list of files we're going to bundle together into a tarball
-            readarray -d'\0' -t FILE_LIST < <(collect_bundle_files "${COREFILE}")
+            readarray -t FILE_LIST < <(collect_bundle_files "${COREFILE}")
             echo "--- ${COREFILE} bundle list"
             for BF in "${FILE_LIST[@]}"; do
                 echo " -> ${BF}"
