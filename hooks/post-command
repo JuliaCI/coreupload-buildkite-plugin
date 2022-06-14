@@ -122,11 +122,11 @@ function collect_bundle_files() {
     declare -A FILES
     for F in "${SHARED_LIBRARY_LINES[@]}"; do
         if [[ -f "${F}" ]]; then
-            FILES["${F}"]=1
+            FILES["$(realpath -s "${F}")"]=1
         fi
     done
-    FILES["${COREFILE}"]=1
-    FILES["${COREFILE_EXE}"]=1
+    FILES["$(realpath -s "${COREFILE}")"]=1
+    FILES["$(realpath -s "${COREFILE_EXE}")"]=1
     printf "%s\n" "${!FILES[@]}"
 }
 
