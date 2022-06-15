@@ -1,3 +1,13 @@
+#!/bin/bash
+
+# Figure out which shasum program to use
+if [[ -n $(which sha256sum 2>/dev/null) ]]; then
+    SHASUM="sha256sum"
+elif [[ -n $(which shasum 2>/dev/null) ]]; then
+    SHASUM="shasum -a 256"
+else
+    die "No sha256sum/shasum available!"
+fi
 
 # Helper function to kill execution when something goes wrong
 function die() {

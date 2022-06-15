@@ -1,11 +1,5 @@
-agents:
-  queue: "juliaecosystem"
-  sandbox_capable: "true"
-  os: "linux"
-  arch: "x86_64"
-
 steps:
-  - label: ":boom: raw coredumps"
+  - label: ":linux: :boom: raw coredumps"
     plugins:
       # Test using globs
       - ".buildkite/plugins/coreupload":
@@ -17,8 +11,13 @@ steps:
       # Create a sub-bash and kill it, then ignore its failure
       mkdir foo && cd foo
       bash -c 'kill -11 $$$$' || true
+    agents:
+      queue: "juliaecosystem"
+      sandbox_capable: "true"
+      os: "linux"
+      arch: "x86_64"
 
-  - label: ":boom: :package: bundled, raw coredump"
+  - label: ":linux: :boom: :package: bundled, raw coredump"
     plugins:
       - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
           core_pattern: "**/*.core"
@@ -39,8 +38,13 @@ steps:
       # Create a sub-bash and kill it, then ignore its failure
       mkdir foo && cd foo
       bash -c 'kill -11 $$$$' || true
+    agents:
+      queue: "juliaecosystem"
+      sandbox_capable: "true"
+      os: "linux"
+      arch: "x86_64"
 
-  - label: ":boom: :zipper_mouth_face: :package: bundled, compressed coredump"
+  - label: ":linux: :boom: :zipper_mouth_face: :package: bundled, compressed coredump"
     plugins:
       # Test using globs
       - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
@@ -63,8 +67,13 @@ steps:
       # Create a sub-bash and kill it, then ignore its failure
       mkdir foo && cd foo
       bash -c 'kill -11 $$$$' || true
+    agents:
+      queue: "juliaecosystem"
+      sandbox_capable: "true"
+      os: "linux"
+      arch: "x86_64"
 
-  - label: ":boom: :unamused: disabled coredumps"
+  - label: ":linux: :boom: :unamused: disabled coredumps"
     plugins:
       - ".buildkite/plugins/coreupload":
           disabled: "true"
@@ -74,8 +83,13 @@ steps:
 
       # Create a sub-bash and kill it, then ignore its failure
       bash -c 'kill -11 $$$$' || true
+    agents:
+      queue: "juliaecosystem"
+      sandbox_capable: "true"
+      os: "linux"
+      arch: "x86_64"
 
-  - label: ":boom: :zipper_mouth_face: zstd coredumps"
+  - label: ":linux: :boom: :zipper_mouth_face: zstd coredumps (gdb)"
     plugins:
       # Test ourselves.  Note that we add ourself via this ugly hack to ensure that our
       # hook ordering is consistent with `sandbox`; if we try to do the "local path" trick,
@@ -83,6 +97,7 @@ steps:
       # makes a PR where the branch doesn't exist on the origin, it won't work properly.
       - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
           compressor: "zstd"
+          debugger: "gdb"
           # Test some cool GDB commands
           gdb_commands:
             - "thread apply all bt"
@@ -108,6 +123,68 @@ steps:
 
       echo "--- sig 11"
       julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
+    agents:
+      queue: "juliaecosystem"
+      sandbox_capable: "true"
+      os: "linux"
+      arch: "x86_64"
+
+  - label: ":linux: :boom: :zipper_mouth_face: zstd coredumps (lldb)"
+    plugins:
+      # Test ourselves.  Note that we add ourself via this ugly hack to ensure that our
+      # hook ordering is consistent with `sandbox`; if we try to do the "local path" trick,
+      # we end up with improperly-ordered hooks.  This unfortunately means that if someone
+      # makes a PR where the branch doesn't exist on the origin, it won't work properly.
+      - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
+          compressor: "zstd"
+          debugger: "lldb"
+          lldb_commands:
+            - "bt all"
+
+      # Install Julia v1 so we can run in a sandbox and also use julia to generate segfaults
+      - JuliaCI/julia:
+          version: "1"
+      - staticfloat/sandbox#v1:
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              uid: 1000
+              gid: 1000
+              workspaces:
+                - "/cache:/cache"
+    commands: |
+      # Enable core dumping
+      ulimit -c unlimited
+
+      # Generate only one segfault
+      echo "--- sig 11"
+      julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
+    agents:
+      queue: "juliaecosystem"
+      sandbox_capable: "true"
+      os: "linux"
+      arch: "x86_64"
+
+  - label: ":macos: :boom: macOS coredumps"
+    plugins:
+      - ".buildkite/plugins/coreupload":
+          core_pattern: "**/*.core"
+          create_bundle: "true"
+          # macOS core dumps are YUUUGE, so make sure you always use a compressor.
+          compressor: "zstd"
+          lldb_commands:
+            - "bt"
+    commands: |
+      # Enable core dumping
+      ulimit -c unlimited
+
+      # Create a sub-bash and kill it, then ignore its failure
+      mkdir foo && cd foo
+      bash -c 'kill -11 $$$$' || true
+    agents:
+      queue: "juliaecosystem"
+      os: "macos"
+      arch: "x86_64"
+
 
   - wait: ~
 
@@ -120,17 +197,22 @@ steps:
       # Move the `foo`-prefixed artifacts into the current directory:
       mv foo/* .
 
-      [[ "$$(ls *.core* | wc -l)" == "5" ]]
-      echo "Five corefiles overall: ✔️"
+      [[ "$$(ls *.core* | wc -l)" == "7" ]]
+      echo "Seven corefiles overall: ✔️"
 
-      [[ "$$(ls julia-*.core.zst | wc -l)" == "2" ]]
-      echo "Two zstd julia corefiles: ✔️"
+      [[ "$$(ls julia-*.core.zst | wc -l)" == "3" ]]
+      echo "Three zstd julia corefiles: ✔️"
 
       [[ "$$(ls bash-*.core | wc -l)" == "1" ]]
       echo "One raw bash corefile: ✔️"
 
-      [[ "$$(ls bash-*.core.tar | wc -l)" == "1" ]]
-      echo "One raw bash bundled bash corefile: ✔️"
+      [[ "$$(ls bash-*.core.tar | wc -l)" == "2" ]]
+      echo "Two raw bash bundled bash corefiles: ✔️"
 
       [[ "$$(ls bash-*.core.tar.zst | wc -l)" == "1" ]]
       echo "One zstd bash bundled bash corefile: ✔️"
+    agents:
+      queue: "juliaecosystem"
+      sandbox_capable: "true"
+      os: "linux"
+      arch: "x86_64"

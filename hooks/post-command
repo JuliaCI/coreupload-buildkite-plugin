@@ -36,7 +36,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
 
     # Upload all compressed core files
     echo "--- Uploading corefiles"
-    UPLOAD_TARGETS=( "$(compressed_bundle_names "${CORE_DUMPS[@]}" )" )
+    UPLOAD_TARGETS=( $(compressed_bundle_names "${CORE_DUMPS[@]}" ) )
     for TARGET in "${UPLOAD_TARGETS[@]}"; do
         buildkite-agent artifact upload "${TARGET}"
     done

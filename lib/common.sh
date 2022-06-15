@@ -44,7 +44,7 @@ if [[ "${COMPRESSOR}" == "zstd" ]]; then
     ensure_tool "zstd" "needed to compress corefiles"
 fi
 
-declare -a DBG_COMMANDS
+DBG_COMMANDS=()
 if [[ "${BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER}" == "lldb" ]]; then
     source "${REPO_DIR}/lib/lldb_support.sh"
     readarray -t DBG_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_LLDB_COMMANDS")
