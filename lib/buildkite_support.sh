@@ -58,6 +58,16 @@ function ensure_tool() {
     fi
 }
 
+function collapse_dotdot() {
+    # Sed command that deletes `..` entries by removing the previous directory entry
+    #   "/foo/bin/../lib/../../foo/lib/libfoo.so" -> "/foo/lib/libfoo.so"
+    # Note that to be compatible with macOS/BSD sed we are forced to provide the command
+    # as a single string with newlines breaking up the commands.
+    sed -E ':loop
+s&[^/]+/\.\./&&
+t loop'
+}
+
 # Helper function to filter out only existant files.
 # Also deduplicates the files and removes `/../` from the path.
 function filter_existant_files() {
@@ -69,7 +79,7 @@ function filter_existant_files() {
     declare -A OUTPUT_FILES
     for F in "${INPUT_FILES[@]}"; do
         if [[ -f "${F}" ]]; then
-            OUTPUT_FILES["$(realpath -s "${F}")"]=1
+            OUTPUT_FILES["$(collapse_dotdot <<<"${F}")"]=1
         fi
     done
 
