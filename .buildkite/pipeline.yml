@@ -197,26 +197,34 @@ steps:
       # Move the `foo`-prefixed artifacts into the current directory:
       mv foo/* .
 
+      echo "+++ Run coredump checks"
+
       # Ensure that all files are above 5k (e.g. not empty tar/zstd streams)
       for f in *.core*; do
-        [[ "$$(stat -c%s "$${f}")" > 5120 ]]
+        echo -n "Check that $${f} is > 5kb: "
+        (( "$$(stat -c%s "$${f}")" > 5120 ))
+        echo "✔️"
       done
-      echo "All corefiles at least 10kb: ✔️"
 
+      echo -n "Seven corefiles overall: "
       [[ "$$(ls *.core* | wc -l)" == "7" ]]
-      echo "Seven corefiles overall: ✔️"
+      echo "✔️"
 
+      echo -n "Three zstd julia corefiles: "
       [[ "$$(ls julia-*.core.zst | wc -l)" == "3" ]]
-      echo "Three zstd julia corefiles: ✔️"
+      echo "✔️"
 
+      echo -n "One raw bash corefile: "
       [[ "$$(ls bash-*.core | wc -l)" == "1" ]]
-      echo "One raw bash corefile: ✔️"
+      echo "✔️"
+      
+      echo -n "One raw bash bundled bash corefile: "
+      [[ "$$(ls bash-*.core.tar | wc -l)" == "1" ]]
+      echo "✔️"
 
-      [[ "$$(ls bash-*.core.tar | wc -l)" == "2" ]]
-      echo "Two raw bash bundled bash corefiles: ✔️"
-
-      [[ "$$(ls bash-*.core.tar.zst | wc -l)" == "1" ]]
-      echo "One zstd bash bundled bash corefile: ✔️"
+      echo -n "Two zstd bash bundled bash corefile: "
+      [[ "$$(ls bash-*.core.tar.zst | wc -l)" == "2" ]]
+      echo "✔️"
     agents:
       queue: "juliaecosystem"
       sandbox_capable: "true"
