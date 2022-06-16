@@ -12,8 +12,10 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     ls -lah "${CORE_DUMPS[@]}"
 
     # Start compressing/collecting corefiles in the background
+    PIDS=()
     for COREFILE in "${CORE_DUMPS[@]}"; do
         compress_bundle "${COREFILE}" &
+        PIDS+=( "$!" )
     done
 
     # If we're given debugger commands, print them out here:
@@ -31,7 +33,9 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
 
     # Wait for compression to finish
     echo "--- Waiting upon compression/bundling"
-    wait
+    for PID in "${PIDS[@]}"; do
+        wait "${PID}"
+    done
     echo " -> done!"
 
     # Upload all compressed core files
