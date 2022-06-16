@@ -197,6 +197,12 @@ steps:
       # Move the `foo`-prefixed artifacts into the current directory:
       mv foo/* .
 
+      # Ensure that all files are above 5k (e.g. not empty tar/zstd streams)
+      for f in *.core*; do
+        [[ "$$(stat -c%s "$${f}")" > 5120 ]]
+      done
+      echo "All corefiles at least 10kb: ✔️"
+
       [[ "$$(ls *.core* | wc -l)" == "7" ]]
       echo "Seven corefiles overall: ✔️"
 
