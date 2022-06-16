@@ -11,9 +11,18 @@ configuration:
     # Make sure you have `zstd` in your path.
     compressor:
       type: string
+
     # Defaults to no commands, if you use these make sure you have `file` and `gdb` in your path.
     gdb_commands:
       type: array
+    # Same as above, only for `lldb`
+    lldb_commands:
+      type: array
+    # Allows forcing a choice between `gdb` and `lldb`
+    # Defaults to `lldb` if available, falling back to `gdb` otherwise.
+    debugger:
+      type: string
+
     # If set to any nonempty string, disables the plugin completely.
     disabled:
       type: string

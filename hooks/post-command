@@ -1,152 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 shopt -s globstar extglob nullglob
+REPO_DIR="$(dirname $( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && pwd 2> /dev/null; ) )";
 
-# Helper function to kill execution when something goes wrong
-function die() {
-    echo "ERROR: ${1}" >&2
-    if which buildkite-agent >/dev/null 2>/dev/null; then
-        # By default, the annotation context is unique to the message
-        local CONTEXT=$(echo "${1}" | ${SHASUM})
-        if [[ "$#" -gt 1 ]]; then
-            CONTEXT="${2}"
-        fi
-        buildkite-agent annotate --context="${CONTEXT}" --style=error "${1}"
-    fi
-    exit 1
-}
-
-# Helper function to collect a buildkite array
-function collect_buildkite_array() {
-    local PARAMETER_NAME="${1}"
-
-    local IDX=0
-    while [[ -v "${PARAMETER_NAME}_${IDX}" ]]; do
-        # Fetch the pattern
-        VARNAME="${PARAMETER_NAME}_${IDX}"
-        printf "%s\n" "${!VARNAME}"
-
-        IDX=$((${IDX} + 1))
-    done
-}
-
-function collect_glob_pattern() {
-    local target="${1}"
-    # Iterate over the glob pattern
-    for f in ${target}; do
-        # Ignore directories, only list files
-        if [[ -f "${f}" ]]; then
-            printf "%s\n" "${f}"
-        fi
-    done
-}
-
-# Helper function to compress the corefiles in the background
-function background_compress_corefiles() {
-    if [[ "${COMPRESSOR}" == "zstd" ]]; then
-        ensure_tool "zstd" "needed to compress corefiles"
-        # Since we generally have many more cores than files,
-        # it's better to launch multiple zstd instances.
-        for F in "$@"; do
-            zstd -q -z -T0 "${F}" &
-        done
-    elif [[ "${COMPRESSOR}" == "none" ]]; then
-        true
-    else
-        die "Unknown compressor '${COMPRESSOR}'"
-    fi
-}
-
-# Helper function to allow compressing in a pipeline
-function compress() {
-    if [[ "${COMPRESSOR}" == "zstd" ]]; then
-        ensure_tool "zstd" "needed to compress corefiles"
-        zstd -q -z -T0 "-"
-    elif [[ "${COMPRESSOR}" == "none" ]]; then
-        cat "-"
-    else
-        die "Unknown compressor '${COMPRESSOR}'"
-    fi
-}
-
-function compressed_corefile_names() {
-    if [[ "${COMPRESSOR}" == "zstd" ]]; then
-        for f in "$@"; do
-            echo "${f}.zst"
-        done
-    elif [[ "${COMPRESSOR}" == "none" ]]; then
-        echo "$@"
-    else
-        die "Unknown compressor '${COMPRESSOR}'"
-    fi
-}
-
-function ensure_tool() {
-    local TOOL="${1}"
-    local REASON="${2}"
-    if [[ -z "$(which "${TOOL}" 2>/dev/null || true)" ]]; then
-        echo "WARNING: Cannot find '${TOOL}', ${REASON}!" >&2
-    fi
-}
-
-function parse_corefile_executable() {
-    local COREFILE="${1}"
-
-    # Make sure we've got these tools
-    ensure_tool "file" "needed to parse executable paths out of corefiles!"
-    ensure_tool "gdb" "needed to run gdb commands"
-
-    # Automatically determine the executable this corefile came from using `file`:
-    local FILE_OUTPUT="$(file "${COREFILE}" 2>/dev/null | tr ',' '\n' || true)"
-
-    # Gracefully skip corefiles we can't parse `AT_EXECFN` out of
-    if ! grep -q execfn <<<"${FILE_OUTPUT}"; then
-        echo "WARNING: Unable to parse executable path out of '${COREFILE}'" >&2
-        return
-    fi
-
-    grep execfn <<<"${FILE_OUTPUT}" | cut -d':' -f2 | tr -d "'" | xargs
-}
-
-function collect_bundle_files() {
-    local COREFILE="${1}"
-    local COREFILE_EXE="${2-}"
-    if [[ -z "${COREFILE_EXE}" ]]; then 
-        COREFILE_EXE="$(parse_corefile_executable "${COREFILE}")"
-    fi
-
-    local GDB_OUTPUT="$(gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex 'info sharedlibrary' 2>&1)"
-    readarray -t SHARED_LIBRARY_LINES < <(awk '{ if ($0 ~ /Shared Object Library/) { found = 1 } else { if (found) { print } } }' <<<"${GDB_OUTPUT}" | tr ' ' '\n')
-
-    # Store `FILES` as an associative array, for deduplication purposes
-    declare -A FILES
-    for F in "${SHARED_LIBRARY_LINES[@]}"; do
-        if [[ -f "${F}" ]]; then
-            FILES["$(realpath -s "${F}")"]=1
-        fi
-    done
-    FILES["$(realpath -s "${COREFILE}")"]=1
-    FILES["$(realpath -s "${COREFILE_EXE}")"]=1
-    printf "%s\n" "${!FILES[@]}"
-}
-
-# Read in plugin options from the environment
-CORE_PATTERN="${BUILDKITE_PLUGIN_COREUPLOAD_CORE_PATTERN:-*.core}"
-COMPRESSOR="${BUILDKITE_PLUGIN_COREUPLOAD_COMPRESSOR:-none}"
-readarray -t GDB_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
-DISABLED="${BUILDKITE_PLUGIN_COREUPLOAD_DISABLED:-}"
-CREATE_BUNDLE="${BUILDKITE_PLUGIN_COREUPLOAD_CREATE_BUNDLE:-false}"
-DEBUG_PLUGIN="${BUILDKITE_PLUGIN_COREUPLOAD_DEBUG_PLUGIN:-false}"
-
-if [[ "${DEBUG_PLUGIN}" == "true" ]]; then
-    echo "--- coreupload debug output"
-    set -x
-fi
-
-# Allow strings to disable us
-if [[ -n "${DISABLED}" ]]; then
-    exit 0
-fi
+source "${REPO_DIR}/lib/common.sh"
 
 # Only start printing out if we found some core dumps
 readarray -t CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
@@ -154,62 +11,36 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     echo "--- List of core dumps"
     ls -lah "${CORE_DUMPS[@]}"
 
-    UPLOAD_TARGETS=()
-    if [[ "${CREATE_BUNDLE}" == "true" ]]; then
-        ensure_tool "file" "needed to parse executable paths out of corefiles!"
-        ensure_tool "gdb" "needed to run gdb commands"
+    # Start compressing/collecting corefiles in the background
+    PIDS=()
+    for COREFILE in "${CORE_DUMPS[@]}"; do
+        compress_bundle "${COREFILE}" &
+        PIDS+=( "$!" )
+    done
 
-        for COREFILE in "${CORE_DUMPS[@]}"; do
-            # Get list of files we're going to bundle together into a tarball
-            readarray -t FILE_LIST < <(collect_bundle_files "${COREFILE}")
-            echo "--- ${COREFILE} bundle list"
-            for BF in "${FILE_LIST[@]}"; do
-                echo " -> ${BF}"
-            done
-
-            # Pass this file list off to `tar`, then compress it
-            COMPRESSED_TARBALL="$(compressed_corefile_names "${COREFILE}.tar")"
-            tar hc "${FILE_LIST[@]}" | compress > "${COMPRESSED_TARBALL}"
-            UPLOAD_TARGETS+=( "${COMPRESSED_TARBALL}" )
-        done
-    else
-        # Start compressing each corefile in the background
-        background_compress_corefiles "${CORE_DUMPS[@]}"
-        for COREFILE in "${CORE_DUMPS[@]}"; do
-            UPLOAD_TARGETS+=( "$(compressed_corefile_names "${COREFILE}")" )
-        done
-    fi
-
-    if [[ "${#GDB_COMMANDS[@]}" > 0 ]]; then
-        ensure_tool "file" "needed to parse executable paths out of corefiles!"
-        ensure_tool "gdb" "needed to run gdb commands"
-
+    # If we're given debugger commands, print them out here:
+    if [[ "${#DBG_COMMANDS[@]}" > 0 ]]; then
         # Spit some preliminary information out into the log for each corefile
-        # In case something went truly wrong and `gdb` doesn't know what to do, don't cause these
-        # commands to fail the entire build.
+        # In case something went truly wrong and the dbeugger doesn't know what to do
+        # don't cause these commands to fail the entire build.
         for COREFILE in "${CORE_DUMPS[@]}"; do
-            COREFILE_EXE="$(parse_corefile_executable "${COREFILE}")"
-            if [[ -z "${COREFILE_EXE}" ]]; then
-                echo "WARNING: Unable to parse executable path out of '${COREFILE}'" >&2
-                continue
-            fi
-
-            for CMD in "${GDB_COMMANDS[@]}"; do
+            for CMD in "${DBG_COMMANDS[@]}"; do
                 echo "--- ${COREFILE} -> ${CMD}"
-                gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex "${CMD}" || true
+                run_dbg_command "${COREFILE}" "${CMD}" || true
             done
         done
     fi
 
-    # Wait for compression to finish, if we started it
-    if [[ -n "$(jobs)" ]]; then
-        echo "--- Waiting upon compression"
-        wait
-        echo " -> done!"
-    fi
+    # Wait for compression to finish
+    echo "--- Waiting upon compression/bundling"
+    for PID in "${PIDS[@]}"; do
+        wait "${PID}"
+    done
+    echo " -> done!"
 
     # Upload all compressed core files
     echo "--- Uploading corefiles"
+    UPLOAD_TARGETS=( $(compressed_bundle_names "${CORE_DUMPS[@]}" ) )
     for TARGET in "${UPLOAD_TARGETS[@]}"; do
         buildkite-agent artifact upload "${TARGET}"
     done
