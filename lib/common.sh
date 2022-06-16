@@ -31,7 +31,7 @@ if [[ ! -v "BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER" ]]; then
     elif which "gdb" >/dev/null 2>/dev/null; then
         export BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER="gdb"
     else
-        echo "WARNING: No debugger found, some coreupload functions unavailable!" >&2
+        warn "No debugger found, some coreupload functions unavailable!"
         export BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER=""
 
         CREATE_BUNDLE="false"
@@ -48,6 +48,16 @@ DBG_COMMANDS=()
 if [[ "${BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER}" == "lldb" ]]; then
     source "${REPO_DIR}/lib/lldb_support.sh"
     readarray -t DBG_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_LLDB_COMMANDS")
+
+    # If the user has accidentally provided `gdb_commands` in their YAML script, but we're using `lldb`,
+    # notify them that they need to change their
+    if [[ "${#DBG_COMMANDS[@]}" == 0 ]]; then
+        readarray -t DBG_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
+        if [[ "${#DBG_COMMANDS[@]}" > 0 ]]; then
+            warn "It appears that you have provided gdb_commands when you should provide lldb_commands!" >&2
+        fi
+    fi
+
 fi
 
 if [[ "${BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER}" == "gdb" ]]; then

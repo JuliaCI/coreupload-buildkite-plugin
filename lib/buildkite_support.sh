@@ -23,6 +23,18 @@ function die() {
     exit 1
 }
 
+function warn() {
+    echo "WARN: ${1}" >&2
+    if which buildkite-agent >/dev/null 2>/dev/null; then
+        # By default, the annotation context is unique to the message
+        local CONTEXT=$(echo "${1}" | ${SHASUM})
+        if [[ "$#" -gt 1 ]]; then
+            CONTEXT="${2}"
+        fi
+        buildkite-agent annotate --context="${CONTEXT}" --style=warning "${1}"
+    fi
+}
+
 # Helper function to collect a buildkite array
 function collect_buildkite_array() {
     local PARAMETER_NAME="${1}"
