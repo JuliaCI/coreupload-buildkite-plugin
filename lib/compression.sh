@@ -1,7 +1,7 @@
 # Helper function to allow compressing in a pipeline
 function compress() {
     if [[ "${COMPRESSOR}" == "zstd" ]]; then
-        zstd -q -z --adapt=min=5 -T0 "-"
+        zstd -q -z -5 -T0 "-"
     elif [[ "${COMPRESSOR}" == "none" ]]; then
         cat "-"
     else
