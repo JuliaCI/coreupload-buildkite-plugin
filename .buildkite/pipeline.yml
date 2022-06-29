@@ -25,8 +25,8 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
               uid: 1000
               gid: 1000
               workspaces:
@@ -54,8 +54,8 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
               uid: 1000
               gid: 1000
               workspaces:
@@ -107,8 +107,8 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
               uid: 1000
               gid: 1000
               workspaces:
@@ -145,8 +145,8 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.19/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "6d03dc546ae91b6173926aa3567d8e7d41010fc7"
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
               uid: 1000
               gid: 1000
               workspaces:
@@ -158,6 +158,35 @@ steps:
       # Generate only one segfault
       echo "--- sig 11"
       julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
+    agents:
+      queue: "juliaecosystem"
+      sandbox_capable: "true"
+      os: "linux"
+      arch: "x86_64"
+
+  - label: ":linux: :boom: :sleeping: debugger freeze"
+    plugins:
+      - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
+          debugger: "lldb"
+          debugger_timeout: 5
+          # Purposefully cause `lldb` to freeze up
+          lldb_commands:
+            - "script import time; time.sleep(1000)"
+      - JuliaCI/julia:
+          version: "1"
+      - staticfloat/sandbox#v1:
+              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
+              uid: 1000
+              gid: 1000
+              workspaces:
+                - "/cache:/cache"
+    commands: |
+      # Enable core dumping
+      ulimit -c unlimited
+
+      # Create a sub-bash and kill it, then ignore its failure
+      bash -c 'kill -11 $$$$' || true
     agents:
       queue: "juliaecosystem"
       sandbox_capable: "true"

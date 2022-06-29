@@ -22,11 +22,17 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     if [[ "${#DBG_COMMANDS[@]}" > 0 ]]; then
         # Spit some preliminary information out into the log for each corefile
         # In case something went truly wrong and the dbeugger doesn't know what to do
-        # don't cause these commands to fail the entire build.
+        # (or even worse, freezes up) don't cause these commands to fail the entire build.
         for COREFILE in "${CORE_DUMPS[@]}"; do
             for CMD in "${DBG_COMMANDS[@]}"; do
                 echo "--- ${COREFILE} -> ${CMD}"
-                run_dbg_command "${COREFILE}" "${CMD}" || true
+                run_dbg_command "${COREFILE}" "${CMD}" & DBG_PID="$!"
+
+                # Kill the debugger if it has frozen
+                (sleep "${DEBUGGER_TIMEOUT}"; kill "${DBG_PID}" 2>/dev/null >/dev/null; echo "DEBUGGER KILLED BY WATCHDOG TIMER") &
+
+                # Wait for one debugging command to finish before starting the next
+                wait "${DBG_PID}" || true
             done
         done
     fi
