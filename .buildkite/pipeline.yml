@@ -25,12 +25,12 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
-              uid: 1000
-              gid: 1000
-              workspaces:
-                - "/cache:/cache"
+          rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+          rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
+          uid: 1000
+          gid: 1000
+          workspaces:
+            - "/cache:/cache"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -54,12 +54,12 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
-              uid: 1000
-              gid: 1000
-              workspaces:
-                - "/cache:/cache"
+          rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+          rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
+          uid: 1000
+          gid: 1000
+          workspaces:
+            - "/cache:/cache"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -107,12 +107,12 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
-              uid: 1000
-              gid: 1000
-              workspaces:
-                - "/cache:/cache"
+          rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+          rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
+          uid: 1000
+          gid: 1000
+          workspaces:
+            - "/cache:/cache"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -145,12 +145,12 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
-              uid: 1000
-              gid: 1000
-              workspaces:
-                - "/cache:/cache"
+          rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+          rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
+          uid: 1000
+          gid: 1000
+          workspaces:
+            - "/cache:/cache"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
@@ -175,12 +175,12 @@ steps:
       - JuliaCI/julia:
           version: "1"
       - staticfloat/sandbox#v1:
-              rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
-              rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
-              uid: 1000
-              gid: 1000
-              workspaces:
-                - "/cache:/cache"
+          rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
+          rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
+          uid: 1000
+          gid: 1000
+          workspaces:
+            - "/cache:/cache"
     commands: |
       # Enable core dumping
       ulimit -c unlimited
