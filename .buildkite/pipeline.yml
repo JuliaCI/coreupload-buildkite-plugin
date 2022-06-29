@@ -217,7 +217,6 @@ steps:
 
   - wait: ~
 
-  # Ensure that we got two coredumps from the previous runs
   - label: ":mag: Check coredumps"
     commands: |
       # Download all artifacts, ensure they match what we expect
