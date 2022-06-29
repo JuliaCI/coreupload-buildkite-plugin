@@ -22,6 +22,10 @@ configuration:
     # Defaults to `lldb` if available, falling back to `gdb` otherwise.
     debugger:
       type: string
+    # Don't let the debugger commands run for longer than this value (in seconds).
+    # Defaults to "120".
+    debugger_timeout:
+      type: number
 
     # If set to any nonempty string, disables the plugin completely.
     disabled:
