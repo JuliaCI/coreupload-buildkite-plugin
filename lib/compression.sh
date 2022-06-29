@@ -26,15 +26,20 @@ function compressed_bundle_names() {
 
 function compress_bundle() {
     local COREFILE="${1}"
+    local BUNDLE_NAME="$(compressed_bundle_names "${COREFILE}")"
 
-    # We are going to use `tar` to bundle together one or more files:
-    declare -a FILE_LIST
-    if [[ "${CREATE_BUNDLE}" == "true" ]]; then
-        readarray -t FILE_LIST < <(collect_bundle_files "${COREFILE}")
-    else
-        FILE_LIST=( "${COREFILE}" )
+    # Skip out early if we're not doing anything
+    if [[ "${COREFILE}" == "${BUNDLE_NAME}" ]]; then
+        return
     fi
 
-    # Pass the file list off to `tar` and compress it
-    tar hc "${FILE_LIST[@]}" | compress > "$(compressed_bundle_names "${COREFILE}")"
+    if [[ "${CREATE_BUNDLE}" == "true" ]]; then
+        # Pass the file list off to `tar` and compress it
+        declare -a FILE_LIST
+        readarray -t FILE_LIST < <(collect_bundle_files "${COREFILE}")
+        tar hc "${FILE_LIST[@]}" | compress > "${BUNDLE_NAME}"
+    else
+        # Compress the file directly
+        compress <"${COREFILE}" >"${BUNDLE_NAME}"
+    fi
 }

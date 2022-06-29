@@ -227,23 +227,23 @@ steps:
 
       echo "+++ Run coredump checks"
 
-      # Ensure that all files are above 5k (e.g. not empty tar/zstd streams)
+      # Ensure that all files are above 20k (e.g. not empty tar/zstd streams)
       for f in *.core*; do
-        echo -n "Check that $${f} is > 5kb: "
-        (( "$$(stat -c%s "$${f}")" > 5120 ))
+        echo -n "Check that $${f} is > 20kb: "
+        (( "$$(stat -c%s "$${f}")" > 20480 ))
         echo "✔️"
       done
 
-      echo -n "Seven corefiles overall: "
-      [[ "$$(ls *.core* | wc -l)" == "7" ]]
+      echo -n "Eight corefiles overall: "
+      [[ "$$(ls *.core* | wc -l)" == "8" ]]
       echo "✔️"
 
       echo -n "Three zstd julia corefiles: "
       [[ "$$(ls julia-*.core.zst | wc -l)" == "3" ]]
       echo "✔️"
 
-      echo -n "One raw bash corefile: "
-      [[ "$$(ls bash-*.core | wc -l)" == "1" ]]
+      echo -n "Two raw bash corefile: "
+      [[ "$$(ls bash-*.core | wc -l)" == "2" ]]
       echo "✔️"
       
       echo -n "One raw bash bundled bash corefile: "
