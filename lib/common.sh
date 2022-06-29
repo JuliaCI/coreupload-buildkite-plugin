@@ -26,10 +26,11 @@ fi
 
 # Determine whether we're using `lldb` or `gdb` as our debugger tool
 if [[ ! -v "BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER" ]]; then
-    if which "lldb"  >/dev/null 2>/dev/null; then
-        export BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER="lldb"
-    elif which "gdb" >/dev/null 2>/dev/null; then
+    # We prefer `gdb` _only_ because we have seen many freezes with `lldb`.
+    if which "gdb" >/dev/null 2>/dev/null; then
         export BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER="gdb"
+    elif which "lldb"  >/dev/null 2>/dev/null; then
+        export BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER="lldb"
     else
         warn "No debugger found, some coreupload functions unavailable!"
         export BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER=""
