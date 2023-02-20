@@ -37,7 +37,7 @@ function compress_bundle() {
         # Pass the file list off to `tar` and compress it
         declare -a FILE_LIST
         readarray -t FILE_LIST < <(collect_bundle_files "${COREFILE}")
-        tar hc "${FILE_LIST[@]}" | compress > "${BUNDLE_NAME}"
+        tar -f - -h -c "${FILE_LIST[@]}" | compress > "${BUNDLE_NAME}"
     else
         # Compress the file directly
         compress <"${COREFILE}" >"${BUNDLE_NAME}"
