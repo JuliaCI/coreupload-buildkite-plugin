@@ -40,6 +40,12 @@ if [[ ! -v "BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER" ]]; then
     fi
 fi
 
+# If we're on FreeBSD, disable `CREATE_BUNDLE`:
+if [[ $(uname 2>/dev/null) == "FreeBSD" ]] && [[ "${CREATE_BUNDLE}" == "true" ]]; then
+    die "Cannot use 'create_bundle: true' on FreeBSD!"
+fi
+    
+
 # Check for compressor tools
 ensure_tool "tar" "needed to compress "
 if [[ "${COMPRESSOR}" == "zstd" ]]; then
