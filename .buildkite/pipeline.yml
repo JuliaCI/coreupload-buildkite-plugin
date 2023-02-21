@@ -214,6 +214,24 @@ steps:
       os: "macos"
       arch: "x86_64"
 
+  - label: ":freebsd: :boom: FreeBSD coredumps"
+    plugins:
+      - ".buildkite/plugins/coreupload":
+          core_pattern: "**/*.core"
+          compressor: "zstd"
+          lldb_commands:
+            - "bt"
+    commands: |
+      # Enable core dumping
+      ulimit -c unlimited
+
+      # Create a sub-bash and kill it, then ignore its failure
+      mkdir foo && cd foo
+      bash -c 'kill -11 $$$$' || true
+    agents:
+      queue: "juliaecosystem"
+      os: "freebsd"
+      arch: "x86_64"
 
   - wait: ~
 
