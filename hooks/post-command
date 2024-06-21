@@ -11,12 +11,29 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     echo "--- List of core dumps"
     ls -lah "${CORE_DUMPS[@]}"
 
-    # Start compressing/collecting corefiles in the background
+    # Start a subshell for compressing/collecting corefiles in the background in parallel
+    (
     PIDS=()
     for COREFILE in "${CORE_DUMPS[@]}"; do
         compress_bundle "${COREFILE}" &
         PIDS+=( "$!" )
     done
+
+    # Wait for compression to finish
+    echo "--- Waiting upon compression/bundling"
+    for PID in "${PIDS[@]}"; do
+        wait "${PID}"
+    done
+    echo " -> done!"
+
+    # Upload all compressed core files
+    echo "--- Uploading corefiles"
+    UPLOAD_TARGETS=( $(compressed_bundle_names "${CORE_DUMPS[@]}" ) )
+    for TARGET in "${UPLOAD_TARGETS[@]}"; do
+        buildkite-agent artifact upload "${TARGET}"
+    done
+    ) &
+    UPLOAD_PID="$!"
 
     # If we're given debugger commands, print them out here:
     if [[ "${#DBG_COMMANDS[@]}" > 0 ]]; then
@@ -37,17 +54,5 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
         done
     fi
 
-    # Wait for compression to finish
-    echo "--- Waiting upon compression/bundling"
-    for PID in "${PIDS[@]}"; do
-        wait "${PID}"
-    done
-    echo " -> done!"
-
-    # Upload all compressed core files
-    echo "--- Uploading corefiles"
-    UPLOAD_TARGETS=( $(compressed_bundle_names "${CORE_DUMPS[@]}" ) )
-    for TARGET in "${UPLOAD_TARGETS[@]}"; do
-        buildkite-agent artifact upload "${TARGET}"
-    done
+    wait "${UPLOAD_PID}"
 fi
