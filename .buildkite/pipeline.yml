@@ -270,7 +270,7 @@ steps:
 
       # FreeBSD, sigh
       echo -n "One zstd-compressed bash raw corefile: "
-      [[ "$$(ls bash-*.core.zst | wc -l)" == "1" ]]
+      [[ "$$(ls bash*.core.zst | wc -l)" == "1" ]]
       echo "✔️"
 
       echo -n "Two zstd bash bundled bash corefile: "
