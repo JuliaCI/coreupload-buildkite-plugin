@@ -9,30 +9,31 @@ else
     die "No sha256sum/shasum available!"
 fi
 
+function job_link() {
+    echo -n "${BUILDKITE_BUILD_URL}#${BUILDKITE_JOB_ID}"
+}
+
+function buildkite_annotation() {
+    if which buildkite-agent >/dev/null 2>/dev/null; then
+        # By default, the annotation context is unique to the message and buildkite job
+        local CONTEXT=$(echo "${2}" "${BUILDKITE_JOB_ID}" | ${SHASUM})
+        if [[ "$#" -gt 2 ]]; then
+            CONTEXT="${3}"
+        fi
+        buildkite-agent annotate --context="${CONTEXT}" --style="${1}" "${2} ([job]($(job_link)))"
+    fi
+}
+
 # Helper function to kill execution when something goes wrong
 function die() {
     echo "ERROR: ${1}" >&2
-    if which buildkite-agent >/dev/null 2>/dev/null; then
-        # By default, the annotation context is unique to the message
-        local CONTEXT=$(echo "${1}" | ${SHASUM})
-        if [[ "$#" -gt 1 ]]; then
-            CONTEXT="${2}"
-        fi
-        buildkite-agent annotate --context="${CONTEXT}" --style=error "${1}"
-    fi
+    buildkite_annotation "error" "$@"
     exit 1
 }
 
 function warn() {
     echo "WARN: ${1}" >&2
-    if which buildkite-agent >/dev/null 2>/dev/null; then
-        # By default, the annotation context is unique to the message
-        local CONTEXT=$(echo "${1}" | ${SHASUM})
-        if [[ "$#" -gt 1 ]]; then
-            CONTEXT="${2}"
-        fi
-        buildkite-agent annotate --context="${CONTEXT}" --style=warning "${1}"
-    fi
+    buildkite_annotation "warning" "$@"
 }
 
 # Helper function to collect a buildkite array
