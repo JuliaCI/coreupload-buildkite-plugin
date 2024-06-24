@@ -252,8 +252,8 @@ steps:
         echo "✔️"
       done
 
-      echo -n "Eight corefiles overall: "
-      [[ "$$(ls *.core* | wc -l)" == "8" ]]
+      echo -n "Nine corefiles overall: "
+      [[ "$$(ls *.core* | wc -l)" == "9" ]]
       echo "✔️"
 
       echo -n "Three zstd julia corefiles: "
