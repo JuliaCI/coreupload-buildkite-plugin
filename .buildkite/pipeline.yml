@@ -131,10 +131,6 @@ steps:
 
   - label: ":linux: :boom: :zipper_mouth_face: zstd coredumps (lldb)"
     plugins:
-      # Test ourselves.  Note that we add ourself via this ugly hack to ensure that our
-      # hook ordering is consistent with `sandbox`; if we try to do the "local path" trick,
-      # we end up with improperly-ordered hooks.  This unfortunately means that if someone
-      # makes a PR where the branch doesn't exist on the origin, it won't work properly.
       - JuliaCI/coreupload#${BUILDKITE_BRANCH}:
           compressor: "zstd"
           debugger: "lldb"
@@ -154,6 +150,10 @@ steps:
     commands: |
       # Enable core dumping
       ulimit -c unlimited
+
+      # Create a few extra processes to avoid core dump name clash
+      bash -c ''
+      bash -c ''
 
       # Generate only one segfault
       echo "--- sig 11"
@@ -252,8 +252,8 @@ steps:
         echo "✔️"
       done
 
-      echo -n "Eight corefiles overall: "
-      [[ "$$(ls *.core* | wc -l)" == "8" ]]
+      echo -n "Nine corefiles overall: "
+      [[ "$$(ls *.core* | wc -l)" == "9" ]]
       echo "✔️"
 
       echo -n "Three zstd julia corefiles: "
@@ -266,6 +266,11 @@ steps:
       
       echo -n "One raw bash bundled bash corefile: "
       [[ "$$(ls bash-*.core.tar | wc -l)" == "1" ]]
+      echo "✔️"
+
+      # FreeBSD, sigh
+      echo -n "One zstd-compressed bash raw corefile: "
+      [[ "$$(ls bash*.core.zst | wc -l)" == "1" ]]
       echo "✔️"
 
       echo -n "Two zstd bash bundled bash corefile: "
