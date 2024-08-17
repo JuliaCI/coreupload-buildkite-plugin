@@ -23,9 +23,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     done
 
     # Wait for compression and upload to finish
-    echo "--- Waiting upon compression/bundling"
     wait -f "${PIDS[@]}"
-    echo " -> done!"
     ) &
     UPLOAD_PID="$!"
 
@@ -48,5 +46,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
         done
     fi
 
+    echo "--- Waiting upon compression/bundling finishing"
     wait -f "${UPLOAD_PID}"
+    echo " -> done!"
 fi
