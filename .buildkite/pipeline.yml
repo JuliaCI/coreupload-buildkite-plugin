@@ -24,7 +24,7 @@ steps:
           create_bundle: "true"
       - JuliaCI/julia:
           version: "1"
-      - staticfloat/sandbox#v1:
+      - staticfloat/sandbox#v2:
           rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
           rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
           uid: 1000
@@ -53,7 +53,7 @@ steps:
           compressor: "zstd"
       - JuliaCI/julia:
           version: "1"
-      - staticfloat/sandbox#v1:
+      - staticfloat/sandbox#v2:
           rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
           rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
           uid: 1000
@@ -106,7 +106,7 @@ steps:
       # Install Julia v1 so we can run in a sandbox and also use julia to generate segfaults
       - JuliaCI/julia:
           version: "1"
-      - staticfloat/sandbox#v1:
+      - staticfloat/sandbox#v2:
           rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
           rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
           uid: 1000
@@ -140,7 +140,7 @@ steps:
       # Install Julia v1 so we can run in a sandbox and also use julia to generate segfaults
       - JuliaCI/julia:
           version: "1"
-      - staticfloat/sandbox#v1:
+      - staticfloat/sandbox#v2:
           rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
           rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
           uid: 1000
@@ -174,7 +174,7 @@ steps:
             - "script import time; time.sleep(1000)"
       - JuliaCI/julia:
           version: "1"
-      - staticfloat/sandbox#v1:
+      - staticfloat/sandbox#v2:
           rootfs_url: "https://github.com/JuliaCI/rootfs-images/releases/download/v5.26/tester_linux.x86_64.tar.gz"
           rootfs_treehash: "777ec4aa795558b5dcc659903c6bd0a0b3565ed4"
           uid: 1000
@@ -263,7 +263,7 @@ steps:
       echo -n "Two raw bash corefile: "
       [[ "$$(ls bash-*.core | wc -l)" == "2" ]]
       echo "✔️"
-      
+
       echo -n "One raw bash bundled bash corefile: "
       [[ "$$(ls bash-*.core.tar | wc -l)" == "1" ]]
       echo "✔️"
