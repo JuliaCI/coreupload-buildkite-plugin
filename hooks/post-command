@@ -48,6 +48,9 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     fi
 
     echo "--- Waiting upon compression/bundling finishing"
-    wait -f "${UPLOAD_PID}"
-    echo " -> done!"
+    if wait -f "${UPLOAD_PID}"; then
+        echo " -> Bundling/Compression finished successfully!"
+    else
+        echo " -> Error occurred during bundling/compression!"
+    fi
 fi
