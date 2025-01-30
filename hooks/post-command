@@ -48,6 +48,7 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     fi
 
     echo "--- Waiting upon compression/bundling finishing"
+    # Only report errors so CI isn't marked bad by issues like https://github.com/JuliaCI/julia-buildkite/issues/421
     if wait -f "${UPLOAD_PID}"; then
         echo " -> Bundling/Compression finished successfully!"
     else
