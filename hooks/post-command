@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# Just for debugging. We'll get rid of this later.
+set -x
+
 set -euo pipefail
 shopt -s globstar extglob nullglob
 REPO_DIR="$(dirname $( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/null && pwd 2> /dev/null; ) )";
