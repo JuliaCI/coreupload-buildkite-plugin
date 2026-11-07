@@ -7,42 +7,57 @@ REPO_DIR="$(dirname $( cd -- "$( dirname -- "${BASH_SOURCE[0]:-$0}"; )" &> /dev/
 source "${REPO_DIR}/lib/common.sh"
 
 # Only start printing out if we found some core dumps
-readarray -t CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
-if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
+readarray -t ALL_CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
+if [[ "${#ALL_CORE_DUMPS[@]}" > 0 ]]; then
     echo "--- List of core dumps"
-    ls -lah "${CORE_DUMPS[@]}"
+    # Oldest first (by modification time, i.e. when the dump finished): the first crash
+    # is the likeliest root cause, and a test that keeps crashing produces many cores
+    # with the same cause.
+    readarray -t ALL_CORE_DUMPS < <(ls -1tr -- "${ALL_CORE_DUMPS[@]}")
+    ls -lahtr -- "${ALL_CORE_DUMPS[@]}"
 
-    # Start a subshell for compressing/collecting corefiles in the background in parallel
+    CORE_DUMPS=( "${ALL_CORE_DUMPS[@]:0:${MAX_CORES}}" )
+    if [[ "${#ALL_CORE_DUMPS[@]}" -gt "${#CORE_DUMPS[@]}" ]]; then
+        echo "Ignoring the $(( ${#ALL_CORE_DUMPS[@]} - ${#CORE_DUMPS[@]} )) newest core dumps (max_cores: ${MAX_CORES})"
+    fi
+    UPLOADS=( "${CORE_DUMPS[@]:0:${MAX_UPLOADS}}" )
+    if [[ "${#CORE_DUMPS[@]}" -gt "${#UPLOADS[@]}" ]]; then
+        echo "Uploading only the ${#UPLOADS[@]} oldest core dump(s) (max_uploads: ${MAX_UPLOADS})"
+    fi
+
+    # Compress and upload in the background while the debugger runs, one core at a
+    # time: concurrent compressors starve the debugger of CPU and disk, and concurrent
+    # uploads on a slow link outlive Buildkite's presigned upload URLs.
     (
-    PIDS=()
-    for COREFILE in "${CORE_DUMPS[@]}"; do
-        (
-        compress_bundle "${COREFILE}"
-        buildkite-agent artifact upload "$(compressed_bundle_names "${COREFILE}")"
-        ) &
-        PIDS+=( "$!" )
+    STATUS=0
+    for COREFILE in "${UPLOADS[@]}"; do
+        if ! has_room_for_bundle "${COREFILE}"; then
+            echo "Not uploading ${COREFILE}: only $(( $(free_space_kib "$(dirname "${COREFILE}")") / 1024 / 1024 )) GiB of disk space left"
+            continue
+        fi
+        if ! compress_bundle "${COREFILE}"; then
+            echo "Compressing ${COREFILE} failed"
+            STATUS=1
+            continue
+        fi
+        if ! run_with_timeout "${UPLOAD_TIMEOUT}" buildkite-agent artifact upload "$(compressed_bundle_names "${COREFILE}")"; then
+            echo "Uploading ${COREFILE} failed"
+            STATUS=1
+        fi
     done
-
-    # Wait for compression and upload to finish
-    wait -f "${PIDS[@]}"
+    exit "${STATUS}"
     ) &
     UPLOAD_PID="$!"
 
     # If we're given debugger commands, print them out here:
     if [[ "${#DBG_COMMANDS[@]}" > 0 ]]; then
         # Spit some preliminary information out into the log for each corefile
-        # In case something went truly wrong and the dbeugger doesn't know what to do
+        # In case something went truly wrong and the debugger doesn't know what to do
         # (or even worse, freezes up) don't cause these commands to fail the entire build.
         for COREFILE in "${CORE_DUMPS[@]}"; do
             for CMD in "${DBG_COMMANDS[@]}"; do
                 echo "--- ${COREFILE} -> ${CMD}"
-                run_dbg_command "${COREFILE}" "${CMD}" & DBG_PID="$!"
-
-                # Kill the debugger if it has frozen
-                (sleep "${DEBUGGER_TIMEOUT}"; kill "${DBG_PID}" 2>/dev/null >/dev/null; echo "DEBUGGER KILLED BY WATCHDOG TIMER") &
-
-                # Wait for one debugging command to finish before starting the next
-                wait -f "${DBG_PID}" || true
+                run_with_timeout "${DEBUGGER_TIMEOUT}" run_dbg_command "${COREFILE}" "${CMD}" || true
             done
         done
     fi
@@ -54,4 +69,8 @@ if [[ "${#CORE_DUMPS[@]}" > 0 ]]; then
     else
         echo " -> Error occurred during bundling/compression!"
     fi
+
+    # Cores can take up most of the disk; don't leave them for the next job.
+    readarray -t BUNDLES < <(compressed_bundle_names "${UPLOADS[@]}")
+    rm -f -- "${ALL_CORE_DUMPS[@]}" "${BUNDLES[@]}" || true
 fi

@@ -13,8 +13,15 @@ DEBUGGER_TIMEOUT="${BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER_TIMEOUT:-120}"
 DISABLED="${BUILDKITE_PLUGIN_COREUPLOAD_DISABLED:-}"
 CREATE_BUNDLE="${BUILDKITE_PLUGIN_COREUPLOAD_CREATE_BUNDLE:-false}"
 DEBUG_PLUGIN="${BUILDKITE_PLUGIN_COREUPLOAD_DEBUG_PLUGIN:-false}"
+MAX_CORES="${BUILDKITE_PLUGIN_COREUPLOAD_MAX_CORES:-10}"
+MAX_UPLOADS="${BUILDKITE_PLUGIN_COREUPLOAD_MAX_UPLOADS:-1}"
+UPLOAD_TIMEOUT="${BUILDKITE_PLUGIN_COREUPLOAD_UPLOAD_TIMEOUT:-900}"
 
-
+# A host can lower the upload count below what the pipeline asks for, e.g. from an
+# agent environment hook on a site with a slow uplink (`COREUPLOAD_MAX_UPLOADS=0`).
+if [[ -n "${COREUPLOAD_MAX_UPLOADS:-}" ]] && (( COREUPLOAD_MAX_UPLOADS < MAX_UPLOADS )); then
+    MAX_UPLOADS="${COREUPLOAD_MAX_UPLOADS}"
+fi
 
 # If someone has requested debugging, enable it from this point out
 # Use a custom prompt to avoid nested bash stacks generating '---'

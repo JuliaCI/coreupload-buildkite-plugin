@@ -3,7 +3,7 @@ function lldb_list_images() {
 
     # Use lldb to get a list of images, filtering out all lines except the ones
     # containing images
-    lldb -x -c "${COREFILE}" --batch -o 'image list' -Q 2>/dev/null | grep '^\[' 
+    run_with_timeout "${DEBUGGER_TIMEOUT}" lldb -x -c "${COREFILE}" --batch -o 'image list' -Q 2>/dev/null | grep '^\['
 }
 
 function parse_lldb_image() {

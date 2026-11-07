@@ -34,6 +34,17 @@ configuration:
     # together into a `.tar` file.  Default: `false`
     create_bundle:
       type: bool
+    # Run the debugger commands on at most this many cores (the oldest ones, by modification time).
+    # Defaults to "10".
+    max_cores:
+      type: number
+    # Compress and upload at most this many cores (the oldest ones, by modification time), one at a time.
+    # Defaults to "1".  A host can lower it with `COREUPLOAD_MAX_UPLOADS` in its environment.
+    max_uploads:
+      type: number
+    # Give up on uploading a core after this many seconds.  Defaults to "900".
+    upload_timeout:
+      type: number
     # If set to `true`, generates large amounts of debugging output.  Default: `false`
     debug_plugin:
       type: bool
