@@ -99,3 +99,79 @@ function filter_existant_files() {
     # Output our list of real files, sorted for cleanliness
     printf "%s\n" "${!OUTPUT_FILES[@]}" | sort
 }
+
+# The descendants of process `${1}`, one per line
+function descendant_pids() {
+    local CHILD
+    for CHILD in $(pgrep -P "${1}" || true); do
+        echo "${CHILD}"
+        descendant_pids "${CHILD}"
+    done
+}
+
+# Run a command, terminating it and its descendants if it is still running after `${1}`
+# seconds.  Returns the command's exit status.
+function run_with_timeout() {
+    local TIMEOUT="${1}"
+    shift
+
+    local FIRED
+    FIRED="$(mktemp)"
+    rm -f "${FIRED}"
+
+    "$@" &
+    local PID="$!"
+    # The watchdog's output goes to /dev/null so that a leftover `sleep` cannot keep
+    # the hook's output pipe open after we are done.
+    (
+        set +e
+        sleep "${TIMEOUT}"
+        touch "${FIRED}"
+        # Descendants too: e.g. a hung pipeline inside a function would otherwise keep
+        # the hook's output open after the function's subshell is gone.
+        PIDS="${PID} $(descendant_pids "${PID}")"
+        # shellcheck disable=SC2086 # one PID per word
+        kill -TERM ${PIDS}
+        for _ in $(seq 10); do
+            sleep 1
+            # shellcheck disable=SC2086
+            kill -0 ${PIDS} || break
+        done
+        # shellcheck disable=SC2086
+        kill -KILL ${PIDS}
+    ) >/dev/null 2>&1 &
+    local WATCHDOG_PID="$!"
+
+    local STATUS=0
+    wait "${PID}" || STATUS="$?"
+    if [[ -e "${FIRED}" ]]; then
+        # Let the watchdog finish off descendants that survive the command
+        wait "${WATCHDOG_PID}" || true
+        echo "Killed '${1}' after ${TIMEOUT} seconds" >&2
+        rm -f "${FIRED}"
+    else
+        # Stop the watchdog before its `sleep`: a watchdog whose `sleep` dies first
+        # would go on to kill whatever process now has PID.
+        local WATCHDOG_CHILDREN
+        WATCHDOG_CHILDREN="$(pgrep -P "${WATCHDOG_PID}" || true)"
+        kill "${WATCHDOG_PID}" 2>/dev/null || true
+        wait "${WATCHDOG_PID}" 2>/dev/null || true
+        # shellcheck disable=SC2086
+        kill ${WATCHDOG_CHILDREN} 2>/dev/null || true
+        rm -f "${FIRED}"
+    fi
+    return "${STATUS}"
+}
+
+# Free space, in KiB, on the filesystem holding `${1}`
+function free_space_kib() {
+    df -Pk "${1}" | awk 'NR == 2 { print $4 }'
+}
+
+# Size of a file, in KiB
+function file_size_kib() {
+    local SIZE
+    # GNU stat first: on Linux, `stat -f` means `--file-system` and also succeeds
+    SIZE="$(stat -c %s "${1}" 2>/dev/null || stat -f %z "${1}")"
+    echo "$(( SIZE / 1024 ))"
+}

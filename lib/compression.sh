@@ -43,3 +43,16 @@ function compress_bundle() {
         compress <"${COREFILE}" >"${BUNDLE_NAME}"
     fi
 }
+
+# Whether there is room to compress a core and still leave 5 GiB of disk space free,
+# assuming zstd output as large as its input, plus 1 GiB for bundled executables and
+# libraries.
+function has_room_for_bundle() {
+    local COREFILE="${1}"
+    if [[ "${COMPRESSOR}" == "none" && "${CREATE_BUNDLE}" != "true" ]]; then
+        # The core is uploaded as-is
+        return 0
+    fi
+    local NEEDED_KIB=$(( $(file_size_kib "${COREFILE}") + (1 + 5) * 1024 * 1024 ))
+    (( $(free_space_kib "$(dirname "${COREFILE}")") >= NEEDED_KIB ))
+}

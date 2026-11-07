@@ -117,7 +117,7 @@ steps:
       # Enable core dumping
       ulimit -c unlimited
 
-      # Generate two segfaults
+      # Generate two segfaults; only the first core gets uploaded
       echo "--- sig 11"
       julia -e 'ccall(:raise, Cvoid, (Cint,), 11)' || true
 
@@ -252,12 +252,13 @@ steps:
         echo "✔️"
       done
 
-      echo -n "Nine corefiles overall: "
-      [[ "$$(ls *.core* | wc -l)" == "9" ]]
+      echo -n "Eight corefiles overall: "
+      [[ "$$(ls *.core* | wc -l)" == "8" ]]
       echo "✔️"
 
-      echo -n "Three zstd julia corefiles: "
-      [[ "$$(ls julia-*.core.zst | wc -l)" == "3" ]]
+      # The gdb step crashes twice, but only uploads its oldest core (max_uploads)
+      echo -n "Two zstd julia corefiles: "
+      [[ "$$(ls julia-*.core.zst | wc -l)" == "2" ]]
       echo "✔️"
 
       echo -n "Two raw bash corefile: "

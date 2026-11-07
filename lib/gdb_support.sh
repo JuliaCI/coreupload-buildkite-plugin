@@ -4,7 +4,7 @@ function gdb_list_images() {
 
     # Use gdb to get a list of shared libraries, using `grep` to grab all lines starting with an address,
     # then print only the last token in each line that matches.
-    gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex 'info sharedlibrary' 2>&1 | grep -E '^0x[0-9a-f]+ ' | grep -E -o '[^ ]+$'
+    run_with_timeout "${DEBUGGER_TIMEOUT}" gdb -nh "${COREFILE_EXE}" "${COREFILE}" -batch -ex 'info sharedlibrary' 2>&1 | grep -E '^0x[0-9a-f]+ ' | grep -E -o '[^ ]+$'
 }
 
 declare -A COREFILE_EXE_CACHE
