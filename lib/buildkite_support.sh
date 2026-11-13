@@ -89,15 +89,18 @@ function filter_existant_files() {
     readarray -t INPUT_FILES
 
     # Construct associative array, use that to store de-duplicated filenames
-    declare -A OUTPUT_FILES
+    declare -A OUTPUT_FILES=()
     for F in "${INPUT_FILES[@]}"; do
         if [[ -f "${F}" ]]; then
             OUTPUT_FILES["$(collapse_dotdot <<<"${F}")"]=1
         fi
     done
 
-    # Output our list of real files, sorted for cleanliness
-    printf "%s\n" "${!OUTPUT_FILES[@]}" | sort
+    # Output our list of real files, sorted for cleanliness.  With no files, `printf`
+    # would still print one empty line, which `tar` rejects as an empty member name.
+    if [[ "${#OUTPUT_FILES[@]}" -gt 0 ]]; then
+        printf "%s\n" "${!OUTPUT_FILES[@]}" | sort
+    fi
 }
 
 # The descendants of process `${1}`, one per line

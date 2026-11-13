@@ -11,7 +11,8 @@ cat > "${TMP}/bin/lldb" <<'LLDB'
 #!/usr/bin/env bash
 # Called as: lldb -x -c CORE --batch -o CMD -Q
 case "$6" in
-    "image list") echo "[  0] ABCD 0x0000000100000000 ${PWD}/fake-exe (0x0)" ;;
+    "image list") if [[ -n "${NO_IMAGES:-}" ]]; then exit 1; fi
+                  echo "[  0] ABCD 0x0000000100000000 ${PWD}/fake-exe (0x0)" ;;
     *) if [[ "$3" == "${HANG_CORE:-}" ]]; then sleep 1000; fi
        echo "$3" >> "${LOG}.debugged" ;;
 esac
@@ -87,6 +88,12 @@ timeout_case grandchildren 3 'f() { local X; X="$(sleep 30 | cat)"; }; run_with_
 timeout_case term_ignored 15 'f() { bash -c "trap \"\" TERM; sleep 30"; }; run_with_timeout 1 f || true'
 OUTPUT="$(bash -c "set -euo pipefail; source '${REPO_DIR}/lib/buildkite_support.sh'; for I in \$(seq 100); do run_with_timeout 60 true; done" 2>&1)"
 if [[ -z "${OUTPUT}" ]]; then echo "ok   no_timeout"; else echo "FAIL no_timeout: ${OUTPUT}"; FAILURES=$(( FAILURES + 1 )); fi
+if OUTPUT="$(bash -c "set -euo pipefail; source '${REPO_DIR}/lib/buildkite_support.sh'; filter_existant_files </dev/null; echo /nonexistent | filter_existant_files; echo end" 2>&1)" \
+        && [[ "${OUTPUT}" == end ]]; then
+    echo "ok   no_files"
+else
+    echo "FAIL no_files: ${OUTPUT}"; FAILURES=$(( FAILURES + 1 ))
+fi
 
 P=julia-pid
 run defaults "${P}3.core ${P}1.core ${P}2.core " "${P}3.core.tar.zst "
@@ -99,6 +106,8 @@ run debugger_hang "${P}3.core ${P}2.core " "${P}3.core.tar.zst " \
     HANG_CORE=test/${P}1.core BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER_TIMEOUT=1
 run upload_hang "${P}3.core ${P}1.core ${P}2.core " "${P}3.core.tar.zst " \
     HANG_UPLOAD=1 BUILDKITE_PLUGIN_COREUPLOAD_UPLOAD_TIMEOUT=1
+# A truncated core, from which the debugger can't list any images
+run no_images "${P}3.core ${P}1.core ${P}2.core " "${P}3.core.tar.zst " NO_IMAGES=1
 run low_disk "${P}3.core ${P}1.core ${P}2.core " "" FREE_KIB=$(( 6 * 1024 * 1024 ))
 
 exit "${FAILURES}"
