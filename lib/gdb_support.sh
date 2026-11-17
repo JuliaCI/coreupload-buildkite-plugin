@@ -27,7 +27,8 @@ function collect_bundle_files() {
 
     # Get a bunch of images, include the corefile and the executable, then filter to only existant files
     local COREFILE_EXE="$(parse_corefile_executable "${COREFILE}")"
-    (gdb_list_images "${COREFILE}" "${COREFILE_EXE}"; echo "${COREFILE}"; echo "${COREFILE_EXE}") | filter_existant_files
+    # gdb lists no libraries for a truncated core; still bundle the core and executable
+    { gdb_list_images "${COREFILE}" "${COREFILE_EXE}" || true; echo "${COREFILE}"; echo "${COREFILE_EXE}"; } | filter_existant_files
 }
 
 function run_dbg_command() {

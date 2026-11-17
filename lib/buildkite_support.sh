@@ -89,15 +89,18 @@ function filter_existant_files() {
     readarray -t INPUT_FILES
 
     # Construct associative array, use that to store de-duplicated filenames
-    declare -A OUTPUT_FILES
+    declare -A OUTPUT_FILES=()
     for F in "${INPUT_FILES[@]}"; do
         if [[ -f "${F}" ]]; then
             OUTPUT_FILES["$(collapse_dotdot <<<"${F}")"]=1
         fi
     done
 
-    # Output our list of real files, sorted for cleanliness
-    printf "%s\n" "${!OUTPUT_FILES[@]}" | sort
+    # Output our list of real files, sorted for cleanliness.  With no files, `printf`
+    # would still print one empty line, which `tar` rejects as an empty member name.
+    if [[ "${#OUTPUT_FILES[@]}" -gt 0 ]]; then
+        printf "%s\n" "${!OUTPUT_FILES[@]}" | sort
+    fi
 }
 
 # The descendants of process `${1}`, one per line
@@ -168,10 +171,38 @@ function free_space_kib() {
     df -Pk "${1}" | awk 'NR == 2 { print $4 }'
 }
 
+# Size of a file, in bytes
+function file_size() {
+    # GNU stat first: on Linux, `stat -f` means `--file-system` and also succeeds
+    stat -c %s "${1}" 2>/dev/null || stat -f %z "${1}"
+}
+
 # Size of a file, in KiB
 function file_size_kib() {
     local SIZE
-    # GNU stat first: on Linux, `stat -f` means `--file-system` and also succeeds
-    SIZE="$(stat -c %s "${1}" 2>/dev/null || stat -f %z "${1}")"
+    SIZE="$(file_size "${1}")"
     echo "$(( SIZE / 1024 ))"
+}
+
+# Wait until the files `${2}...` stop growing (no change in size for 2 seconds), for at
+# most `${1}` seconds.
+function wait_until_unchanged() {
+    local TIMEOUT="${1}"
+    shift
+    local DEADLINE=$(( SECONDS + TIMEOUT )) PREV="" CUR F
+    while true; do
+        CUR=""
+        for F in "$@"; do
+            CUR+="$(file_size "${F}") "
+        done
+        if [[ "${CUR}" == "${PREV}" ]]; then
+            return 0
+        fi
+        if (( SECONDS >= DEADLINE )); then
+            echo "Core dumps still growing after ${TIMEOUT} seconds"
+            return 0
+        fi
+        PREV="${CUR}"
+        sleep 2
+    done
 }

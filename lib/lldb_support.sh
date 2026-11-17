@@ -28,7 +28,8 @@ function collect_bundle_files() {
     local COREFILE="${1}"
 
     # Output the full image list, as well as the corefile, output the list of files
-    (lldb_list_images "${COREFILE}" | parse_lldb_image; echo "${COREFILE}") | filter_existant_files
+    # lldb lists no images for a truncated core; still bundle the core
+    { lldb_list_images "${COREFILE}" | parse_lldb_image || true; echo "${COREFILE}"; } | filter_existant_files
 }
 
 function run_dbg_command() {

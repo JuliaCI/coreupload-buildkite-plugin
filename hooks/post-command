@@ -10,6 +10,9 @@ source "${REPO_DIR}/lib/common.sh"
 readarray -t ALL_CORE_DUMPS < <(collect_glob_pattern "${CORE_PATTERN}")
 if [[ "${#ALL_CORE_DUMPS[@]}" > 0 ]]; then
     echo "--- List of core dumps"
+    # The command can finish while a core is still being written, e.g. by a child
+    # process that got SIGQUIT just before its parent exited.
+    wait_until_unchanged 300 "${ALL_CORE_DUMPS[@]}"
     # Oldest first (by modification time, i.e. when the dump finished): the first crash
     # is the likeliest root cause, and a test that keeps crashing produces many cores
     # with the same cause.
