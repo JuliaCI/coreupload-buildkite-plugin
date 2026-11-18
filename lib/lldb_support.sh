@@ -1,9 +1,30 @@
+# lldb finds no executable in a FreeBSD core, and without one it lists no images and
+# resolves no symbols. `procstat` reads the executable's path from the core.
+function core_executable() {
+    local COREFILE="${1}"
+
+    [[ "$(uname 2>/dev/null)" == "FreeBSD" ]] || return 0
+    # PID COMM OSREL PATH
+    procstat -b "${COREFILE}" 2>/dev/null |
+        awk 'NR == 2 { sub(/^ *[0-9]+ +[^ ]+ +[0-9]+ +/, ""); print }' | filter_existant_files
+}
+
+# Run lldb on a core, with its executable where we know it
+function lldb_core() {
+    local COREFILE="${1}"
+    shift
+    local EXECUTABLE
+    EXECUTABLE="$(core_executable "${COREFILE}")"
+
+    lldb -x ${EXECUTABLE:+--file "${EXECUTABLE}"} -c "${COREFILE}" "$@"
+}
+
 function lldb_list_images() {
     local COREFILE="${1}"
 
     # Use lldb to get a list of images, filtering out all lines except the ones
     # containing images
-    run_with_timeout "${DEBUGGER_TIMEOUT}" lldb -x -c "${COREFILE}" --batch -o 'image list' -Q 2>/dev/null | grep '^\['
+    run_with_timeout "${DEBUGGER_TIMEOUT}" lldb_core "${COREFILE}" --batch -o 'image list' -Q 2>/dev/null | grep '^\['
 }
 
 function parse_lldb_image() {
@@ -36,5 +57,5 @@ function run_dbg_command() {
     local COREFILE="${1}"
     local CMD="${2}"
 
-    lldb -x -c "${COREFILE}" --batch -o "${CMD}" -Q
+    lldb_core "${COREFILE}" --batch -o "${CMD}" -Q
 }

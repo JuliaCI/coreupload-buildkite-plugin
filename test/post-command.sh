@@ -9,14 +9,37 @@ mkdir -p "${TMP}/bin"
 
 cat > "${TMP}/bin/lldb" <<'LLDB'
 #!/usr/bin/env bash
-# Called as: lldb -x -c CORE --batch -o CMD -Q
-case "$6" in
+# Called as: lldb -x [--file EXE] -c CORE --batch -o CMD -Q
+EXE="" CORE="" CMD=""
+while (( $# )); do
+    case "$1" in
+        --file) EXE="$2"; shift ;;
+        -c) CORE="$2"; shift ;;
+        -o) CMD="$2"; shift ;;
+    esac
+    shift
+done
+if [[ -n "${WANT_EXE:-}" && "${EXE}" != "${PWD}/${WANT_EXE}" ]]; then
+    echo "lldb got executable '${EXE}' for ${CORE}" >> "${LOG}.badexe"
+fi
+case "${CMD}" in
     "image list") if [[ -n "${NO_IMAGES:-}" ]]; then exit 1; fi
                   echo "[  0] ABCD 0x0000000100000000 ${PWD}/fake-exe (0x0)" ;;
-    *) if [[ "$3" == "${HANG_CORE:-}" ]]; then sleep 1000; fi
-       echo "$3" >> "${LOG}.debugged" ;;
+    *) if [[ "${CORE}" == "${HANG_CORE:-}" ]]; then sleep 1000; fi
+       echo "${CORE}" >> "${LOG}.debugged" ;;
 esac
 LLDB
+# For FREEBSD=1: the executable that FreeBSD's procstat reads from a core
+cat > "${TMP}/bin/procstat" <<'PROCSTAT'
+#!/usr/bin/env bash
+[[ "$1" == -b ]] || exit 1
+echo "  PID COMM                OSREL PATH"
+echo " 1245 julia             1404000 ${PWD}/fake exe"
+PROCSTAT
+cat > "${TMP}/bin/uname" <<'UNAME'
+#!/usr/bin/env bash
+if [[ -n "${FREEBSD:-}" ]]; then echo FreeBSD; else echo Linux; fi
+UNAME
 cat > "${TMP}/bin/buildkite-agent" <<'AGENT'
 #!/usr/bin/env bash
 echo "$3" >> "${LOG}.uploaded"
@@ -38,6 +61,7 @@ function run() {
     local WORK="${TMP}/${NAME}"
     mkdir -p "${WORK}/test"
     echo exe > "${WORK}/fake-exe"
+    echo exe > "${WORK}/fake exe"
     # Name order differs from age order
     local I
     for I in 1 2 3; do
@@ -60,7 +84,7 @@ function run() {
         "$@" timeout 60 bash "${REPO_DIR}/hooks/post-command" > "${WORK}/output" 2>&1) || true
     if [[ -n "${WRITER}" ]]; then wait "${WRITER}" || true; fi
     local GOT_DEBUGGED GOT_UPLOADED LEFT
-    touch "${WORK}/log.debugged" "${WORK}/log.uploaded" "${WORK}/log.sizes"
+    touch "${WORK}/log.debugged" "${WORK}/log.uploaded" "${WORK}/log.sizes" "${WORK}/log.badexe"
     GOT_DEBUGGED="$(sed 's|.*/||' "${WORK}/log.debugged" | tr '
 ' ' ')"
     GOT_UPLOADED="$(sed 's|.*/||' "${WORK}/log.uploaded" | tr '
@@ -72,11 +96,11 @@ function run() {
     local GOT_SIZE
     GOT_SIZE="$(sort -n "${WORK}/log.sizes" | tail -1)"
     if [[ "${GOT_DEBUGGED}" == "${DEBUGGED}" && "${GOT_UPLOADED}" == "${UPLOADED}" && "${LEFT}" == 0 \
-          && "${GOT_SIZE:-0}" -ge "${MIN_SIZE}" ]]; then
+          && "${GOT_SIZE:-0}" -ge "${MIN_SIZE}" && ! -s "${WORK}/log.badexe" ]]; then
         echo "ok   ${NAME}"
     else
         echo "FAIL ${NAME}: debugged '${GOT_DEBUGGED}' (want '${DEBUGGED}'), uploaded '${GOT_UPLOADED}' (want '${UPLOADED}'), ${LEFT} files left, largest bundle ${GOT_SIZE:-0} bytes (want >= ${MIN_SIZE})"
-        sed 's/^/     | /' "${WORK}/output"
+        sed 's/^/     | /' "${WORK}/output" "${WORK}/log.badexe"
         FAILURES=$(( FAILURES + 1 ))
     fi
 }
@@ -135,6 +159,9 @@ run upload_hang "${P}3.core ${P}1.core ${P}2.core " "${P}3.core.tar.zst " \
     HANG_UPLOAD=1 BUILDKITE_PLUGIN_COREUPLOAD_UPLOAD_TIMEOUT=1
 # A truncated core, from which the debugger can't list any images
 run no_images "${P}3.core ${P}1.core ${P}2.core " "${P}3.core.tar.zst " NO_IMAGES=1
+# lldb finds no executable in a FreeBSD core; it must be given the one procstat reports
+run freebsd "${P}3.core ${P}1.core ${P}2.core " "${P}3.core.zst " \
+    FREEBSD=1 BUILDKITE_PLUGIN_COREUPLOAD_CREATE_BUNDLE=false WANT_EXE='fake exe'
 # Appending makes julia-pid1.core the newest
 run growing "${P}3.core ${P}2.core ${P}1.core " "${P}3.core.tar.zst ${P}2.core.tar.zst ${P}1.core.tar.zst " \
     GROW=1 BUILDKITE_PLUGIN_COREUPLOAD_MAX_UPLOADS=3
