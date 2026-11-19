@@ -86,6 +86,11 @@ if [[ "${BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER}" == "gdb" ]]; then
     source "${REPO_DIR}/lib/gdb_support.sh"
 
     readarray -t DBG_COMMANDS < <(collect_buildkite_array "BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS")
+    # lldb's commands don't work in gdb, so they are not run; the hook says so when there
+    # are cores, or they would silently be left without backtraces
+    if [[ "${#DBG_COMMANDS[@]}" == 0 && -v BUILDKITE_PLUGIN_COREUPLOAD_LLDB_COMMANDS_0 ]]; then
+        DBG_COMMANDS_MISSING="Only lldb_commands were given, but gdb is the debugger here: provide gdb_commands too!"
+    fi
 fi
 
 # If someone has requested that we not operate, quit out here:

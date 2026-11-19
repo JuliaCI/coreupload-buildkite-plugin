@@ -217,4 +217,24 @@ run growing "${P}3.core ${P}2.core ${P}1.core " "${P}3.core.tar.zst ${P}2.core.t
     GROW=1 BUILDKITE_PLUGIN_COREUPLOAD_MAX_UPLOADS=3
 run low_disk "${P}3.core ${P}1.core ${P}2.core " "" FREE_KIB=$(( 6 * 1024 * 1024 ))
 
+# gdb is preferred when installed, and lldb_commands alone then run nothing: warn when
+# that leaves cores without backtraces, and only then
+function lldb_commands_for_gdb() {
+    local WORK="${TMP}/lldb_commands_for_gdb_$1"
+    mkdir -p "${WORK}/test"
+    if [[ "$1" == core ]]; then echo core > "${WORK}/test/julia-pid1.core"; fi
+    (cd "${WORK}" && env PATH="${TMP}/bin:${PATH}" LOG="${WORK}/log" \
+        BUILDKITE_PLUGIN_COREUPLOAD_CORE_PATTERN='**/*.core' \
+        BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER=gdb \
+        BUILDKITE_PLUGIN_COREUPLOAD_LLDB_COMMANDS_0="bt all" \
+        timeout 60 bash "${REPO_DIR}/hooks/post-command" 2>&1) || true
+}
+if [[ "$(lldb_commands_for_gdb core)" == *"provide gdb_commands"* &&
+      "$(lldb_commands_for_gdb none)" != *"provide gdb_commands"* ]]; then
+    echo "ok   lldb_commands_for_gdb"
+else
+    echo "FAIL lldb_commands_for_gdb: no warning with a core, or one without"
+    FAILURES=$(( FAILURES + 1 ))
+fi
+
 exit "${FAILURES}"
