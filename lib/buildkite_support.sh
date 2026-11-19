@@ -128,7 +128,17 @@ function run_with_timeout() {
     # the hook's output pipe open after we are done.
     (
         set +e
-        sleep "${TIMEOUT}"
+        # Take our `sleep` along when stopped early. On Windows, a leftover `sleep`
+        # keeps the hook running even with its output redirected, and there is no
+        # `pgrep` there to find it. The trap is set before the `sleep` starts and
+        # finds it in our job table, which starts out empty. Not `$!`: until the
+        # `sleep` starts, that is the command's PID, which may belong to another
+        # process by the time we are stopped. Running jobs only: once the `sleep` has
+        # exited and been reaped, its PID may belong to another process too.
+        trap 'kill $(jobs -pr) 2>/dev/null; wait; exit 0' TERM
+        sleep "${TIMEOUT}" &
+        wait "$!"
+        trap - TERM
         touch "${FIRED}"
         # Descendants too: e.g. a hung pipeline inside a function would otherwise keep
         # the hook's output open after the function's subshell is gone.
@@ -153,14 +163,11 @@ function run_with_timeout() {
         echo "Killed '${1}' after ${TIMEOUT} seconds" >&2
         rm -f "${FIRED}"
     else
-        # Stop the watchdog before its `sleep`: a watchdog whose `sleep` dies first
-        # would go on to kill whatever process now has PID.
-        local WATCHDOG_CHILDREN
-        WATCHDOG_CHILDREN="$(pgrep -P "${WATCHDOG_PID}" || true)"
+        # Stop the watchdog, which stops its `sleep`; never kill the `sleep` alone: a
+        # watchdog whose `sleep` dies first would go on to kill whatever process now
+        # has PID.
         kill "${WATCHDOG_PID}" 2>/dev/null || true
         wait "${WATCHDOG_PID}" 2>/dev/null || true
-        # shellcheck disable=SC2086
-        kill ${WATCHDOG_CHILDREN} 2>/dev/null || true
         rm -f "${FIRED}"
     fi
     return "${STATUS}"
