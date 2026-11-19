@@ -40,7 +40,12 @@ if [[ ! -v "BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER" ]]; then
     elif which "lldb"  >/dev/null 2>/dev/null; then
         export BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER="lldb"
     else
-        warn "No debugger found, some coreupload functions unavailable!"
+        # Only worth a warning when a debugger was needed: e.g. Windows has none, and
+        # its dumps are just uploaded.
+        if [[ -v BUILDKITE_PLUGIN_COREUPLOAD_GDB_COMMANDS_0 || -v BUILDKITE_PLUGIN_COREUPLOAD_LLDB_COMMANDS_0 ||
+              "${CREATE_BUNDLE}" == "true" ]]; then
+            warn "No debugger found, some coreupload functions unavailable!"
+        fi
         export BUILDKITE_PLUGIN_COREUPLOAD_DEBUGGER=""
 
         CREATE_BUNDLE="false"

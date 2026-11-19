@@ -126,6 +126,56 @@ timeout_case grandchildren 3 'f() { local X; X="$(sleep 30 | cat)"; }; run_with_
 timeout_case term_ignored 15 'f() { bash -c "trap \"\" TERM; sleep 30"; }; run_with_timeout 1 f || true'
 OUTPUT="$(bash -c "set -euo pipefail; source '${REPO_DIR}/lib/buildkite_support.sh'; for I in \$(seq 100); do run_with_timeout 60 true; done" 2>&1)"
 if [[ -z "${OUTPUT}" ]]; then echo "ok   no_timeout"; else echo "FAIL no_timeout: ${OUTPUT}"; FAILURES=$(( FAILURES + 1 )); fi
+# Windows has no `pgrep`; the watchdog's `sleep` must not outlive it there either. A
+# `sleep` double records its PID once it runs, and the command only returns then.
+mkdir -p "${TMP}/nopgrep"
+printf '#!/bin/sh\nexit 127\n' > "${TMP}/nopgrep/pgrep"
+cat > "${TMP}/nopgrep/sleep" <<SLEEP
+#!/bin/sh
+if [ "\$1" = 97 ]; then echo \$\$ > "${TMP}/nopgrep/pid.tmp"; mv "${TMP}/nopgrep/pid.tmp" "${TMP}/nopgrep/pid"; fi
+exec $(command -v sleep) "\$@"
+SLEEP
+chmod +x "${TMP}/nopgrep/pgrep" "${TMP}/nopgrep/sleep"
+# shellcheck disable=SC2016 # expanded by the inner bash
+PATH="${TMP}/nopgrep:${PATH}" bash -c "set -euo pipefail; source '${REPO_DIR}/lib/buildkite_support.sh'
+    f() { until [[ -s '${TMP}/nopgrep/pid' ]]; do sleep 0.01; done; }
+    run_with_timeout 97 f"
+SLEEP_PID="$(cat "${TMP}/nopgrep/pid")"
+if ! kill -0 "${SLEEP_PID}" 2>/dev/null; then
+    echo "ok   no_pgrep"
+else
+    echo "FAIL no_pgrep: the watchdog left its sleep (PID ${SLEEP_PID}) behind"; FAILURES=$(( FAILURES + 1 ))
+    kill "${SLEEP_PID}"
+fi
+# Stopped before its `sleep` has started, the watchdog must not signal the command's PID,
+# which is no longer the command's by then. `trap` and `kill` are wrapped to hold the
+# watchdog right after it set its trap, and to log what it signals.
+# shellcheck disable=SC2016 # expanded by the inner bash
+OUTPUT="$(bash -c "set -euo pipefail; source '${REPO_DIR}/lib/buildkite_support.sh'
+    kill() { echo \"kill \$*\" >> '${TMP}/early.kills'; builtin kill \"\$@\"; }
+    trap() {
+        builtin trap \"\$@\"
+        if [[ \"\$#\" == 2 && \"\$1\" != - && \"\$2\" == TERM ]]; then
+            touch '${TMP}/early.armed'
+            while :; do sleep 0.01; done
+        fi
+    }
+    f() {
+        echo \"\${BASHPID}\" > '${TMP}/early.cmd'
+        for _ in \$(seq 1000); do [[ -e '${TMP}/early.armed' ]] && return; sleep 0.01; done
+    }
+    run_with_timeout 97 f" 2>&1)"
+CMD_PID="$(cat "${TMP}/early.cmd")"
+if [[ ! -e "${TMP}/early.armed" ]]; then
+    echo "FAIL early_term: the watchdog set no TERM trap"; FAILURES=$(( FAILURES + 1 ))
+elif grep -qw -- "${CMD_PID}" "${TMP}/early.kills"; then
+    echo "FAIL early_term: the watchdog signalled the command's PID ${CMD_PID}"; FAILURES=$(( FAILURES + 1 ))
+    sed 's/^/     | /' "${TMP}/early.kills"
+elif [[ -n "${OUTPUT}" ]]; then
+    echo "FAIL early_term: ${OUTPUT}"; FAILURES=$(( FAILURES + 1 ))
+else
+    echo "ok   early_term"
+fi
 if OUTPUT="$(bash -c "set -euo pipefail; source '${REPO_DIR}/lib/buildkite_support.sh'; filter_existant_files </dev/null; echo /nonexistent | filter_existant_files; echo end" 2>&1)" \
         && [[ "${OUTPUT}" == end ]]; then
     echo "ok   no_files"
