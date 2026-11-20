@@ -63,6 +63,8 @@ if [[ "${#ALL_CORE_DUMPS[@]}" > 0 ]]; then
                 run_with_timeout "${DEBUGGER_TIMEOUT}" run_dbg_command "${COREFILE}" "${CMD}" || true
             done
         done
+    elif [[ -n "${DBG_COMMANDS_MISSING:-}" ]]; then
+        warn "${DBG_COMMANDS_MISSING}"
     fi
 
     echo "--- Waiting upon compression/bundling finishing"
